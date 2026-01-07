@@ -15,9 +15,23 @@ router = APIRouter(prefix="/answer-notes", tags=["Answer Notes"])
     "",
     response_model=list[AnswerNoteResponse],
     summary="답변 노트 목록 조회",
-    description="현재 로그인한 사용자의 답변 노트를 조회합니다.",
+    description="""
+현재 로그인한 사용자의 답변 노트 목록을 조회합니다.
+
+**답변 노트란?**
+- 면접 질문에 대해 사용자가 작성한 답변과 피드백을 저장하는 공간
+- 면접 세트와는 별개로, 개별 질문에 대한 학습/연습용
+
+**정렬:** 최근 수정순 (updated_at 내림차순)
+
+**응답 필드:**
+- `initial_answer`: 처음 작성한 답변
+- `first_feedback`: 첫 번째 피드백 (수정 후)
+- `second_feedback`: 두 번째 피드백 (수정 후)
+- `final_answer`: 최종 정리된 답변
+""",
     responses={
-        200: {"description": "답변 노트 목록 조회 성공"},
+        200: {"description": "답변 노트 목록 반환 (최근 수정순)"},
         401: {
             "description": "인증 실패 또는 유효하지 않은 토큰",
             "content": {
@@ -53,9 +67,26 @@ def list_answer_notes(db: DB, current_user: CurrentUser):
     response_model=AnswerNoteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="답변 노트 생성",
-    description="새로운 답변 노트를 생성합니다.",
+    description="""
+새로운 답변 노트를 생성합니다.
+
+**사용 목적:**
+- 특정 질문에 대한 답변을 연습하고 기록
+- 피드백을 받으며 답변을 개선하는 과정 저장
+
+**필수 필드:**
+- `question_id`: 연결할 질문 ID
+- `initial_answer`: 처음 작성한 답변
+
+**선택 필드:**
+- `first_feedback`: 첫 번째 피드백
+- `second_feedback`: 두 번째 피드백
+- `final_answer`: 최종 정리된 답변
+
+**Tip:** 처음에는 initial_answer만 작성하고, 나중에 PUT으로 피드백/최종답변을 추가할 수 있습니다.
+""",
     responses={
-        201: {"description": "답변 노트 생성 성공"},
+        201: {"description": "답변 노트 생성 성공 - 생성된 노트 정보 반환"},
         401: {
             "description": "인증 실패 또는 유효하지 않은 토큰",
             "content": {
@@ -151,9 +182,23 @@ def create_answer_note(body: AnswerNoteCreate, db: DB, current_user: CurrentUser
     "/{note_id}",
     response_model=AnswerNoteResponse,
     summary="답변 노트 수정",
-    description="기존 답변 노트를 수정합니다.",
+    description="""
+기존 답변 노트를 수정합니다.
+
+**수정 가능 필드 (선택적):**
+- `first_feedback`: 첫 번째 피드백
+- `second_feedback`: 두 번째 피드백
+- `final_answer`: 최종 정리된 답변
+
+**특징:**
+- 전송한 필드만 업데이트됩니다 (PATCH 방식 동작)
+- null이 아닌 값만 기존 값을 덮어씁니다
+- `initial_answer`와 `question_id`는 수정 불가 (생성 시 고정)
+
+**권한:** 본인이 생성한 노트만 수정 가능 (403 에러 발생)
+""",
     responses={
-        200: {"description": "답변 노트 수정 성공"},
+        200: {"description": "답변 노트 수정 성공 - 수정된 노트 정보 반환"},
         401: {
             "description": "인증 실패 또는 유효하지 않은 토큰",
             "content": {
@@ -253,9 +298,17 @@ def update_answer_note(note_id: UUID, body: AnswerNoteUpdate, db: DB, current_us
     "/{note_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="답변 노트 삭제",
-    description="답변 노트를 삭제합니다.",
+    description="""
+답변 노트를 삭제합니다.
+
+**주의사항:**
+- 삭제된 노트는 복구할 수 없습니다.
+- 연결된 질문 데이터에는 영향을 주지 않습니다.
+
+**권한:** 본인이 생성한 노트만 삭제 가능 (403 에러 발생)
+""",
     responses={
-        204: {"description": "답변 노트 삭제 성공"},
+        204: {"description": "답변 노트 삭제 성공 (응답 본문 없음)"},
         401: {
             "description": "인증 실패 또는 유효하지 않은 토큰",
             "content": {

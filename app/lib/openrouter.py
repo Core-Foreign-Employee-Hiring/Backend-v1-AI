@@ -254,11 +254,12 @@ JSON 형식으로 응답 (반드시 이 형식을 따르세요):
             if 1 <= question_order <= len(answers_data):
                 answer_data = answers_data[question_order - 1]
                 enriched_item = {
-                    "questionOrder": question_order,
+                    "question_order": question_order,
+                    "question_id": answer_data.get("question_id"),
                     "question": answer_data.get("question", ""),
-                    "userAnswer": answer_data.get("user_answer", ""),
-                    "followUpQuestion": answer_data.get("follow_up_question"),
-                    "followUpAnswer": answer_data.get("follow_up_answer"),
+                    "user_answer": answer_data.get("user_answer", ""),
+                    "follow_up_question": answer_data.get("follow_up_question"),
+                    "follow_up_answer": answer_data.get("follow_up_answer"),
                     "feedback": item.get("feedback", ""),
                     "improvements": item.get("improvements", ""),
                 }

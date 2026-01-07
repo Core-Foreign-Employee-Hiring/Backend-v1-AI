@@ -9,6 +9,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api import answer_notes, interview, questions
 from app.core.database import create_db_and_tables, seed_initial_questions
 
+from scalar_fastapi import get_scalar_api_reference
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -99,6 +101,15 @@ app.include_router(questions.router)  # 어드민 전용: /admin/questions
 app.include_router(interview.router)  # 일반 사용자: /interview
 app.include_router(answer_notes.router)  # 일반 사용자: /answer-notes
 
+
+@app.get("/scalar", include_in_schema=False)
+async def scalar_html():
+    return get_scalar_api_reference(
+        # Your OpenAPI document
+        openapi_url=app.openapi_url,
+        # Avoid CORS issues (optional)
+        scalar_proxy_url="https://proxy.scalar.com",
+    )
 
 @app.get(
     "/health",

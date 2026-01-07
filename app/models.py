@@ -20,6 +20,13 @@ class Level(str, Enum):
     # 향후 추가 가능: SENIOR = "senior", LEAD = "lead", etc.
 
 
+class InterviewSetStatus(str, Enum):
+    """면접 세트 상태"""
+    IN_PROGRESS = "in_progress"  # 면접중: 아직 답변 진행 중
+    PENDING_EVALUATION = "pending_evaluation"  # 평가대기: 모든 답변 완료, 평가 대기
+    COMPLETED = "completed"  # 평가완료: AI 평가 완료
+
+
 class Question(SQLModel, table=True):
     """질문 모델 (공통/직무/외국인특화)"""
 
@@ -48,9 +55,10 @@ class InterviewSet(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     user_id: str = Field(index=True)  # 유저 ID (JWT sub)
+    title: str = Field(default="면접", index=True)  # 면접 세트 제목
     job_type: str = Field(index=True)  # JobType enum 값
     level: str = Field(index=True)  # Level enum 값
-    status: str = Field(default="in_progress")  # 'in_progress', 'completed'
+    status: str = Field(default=InterviewSetStatus.IN_PROGRESS.value, index=True)  # InterviewSetStatus enum 값
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = Field(default=None)
 

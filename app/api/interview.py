@@ -12,6 +12,7 @@ from app.models import (
     InterviewEvaluation,
     InterviewSet,
     InterviewSetQuestion,
+    InterviewSetStatus,
     Question,
 )
 from app.schemas import (
@@ -39,14 +40,72 @@ def shuffle_array(arr: list) -> list:
     return shuffled
 
 
+def check_and_update_interview_status(db: "DB", set_id: UUID) -> bool:
+    """
+    면접 세트의 모든 답변이 완료되었는지 확인하고, 완료 시 상태를 pending_evaluation으로 변경합니다.
+    
+    조건:
+    - 세트에 포함된 모든 질문에 대해 답변이 있어야 함
+    - 꼬리질문이 있는 답변은 꼬리질문 답변도 있어야 함
+    
+    Returns:
+        True if status was changed to pending_evaluation, False otherwise
+    """
+    # 면접 세트 조회
+    interview_set = db.get(InterviewSet, set_id)
+    if not interview_set or interview_set.status != InterviewSetStatus.IN_PROGRESS.value:
+        return False
+    
+    # 세트에 포함된 질문 개수
+    set_questions = db.exec(
+        select(InterviewSetQuestion).where(InterviewSetQuestion.set_id == set_id)
+    ).all()
+    total_questions = len(set_questions)
+    
+    if total_questions == 0:
+        return False
+    
+    # 답변 조회
+    answers = db.exec(
+        select(InterviewAnswer).where(InterviewAnswer.set_id == set_id)
+    ).all()
+    
+    # 모든 질문에 답변했는지 확인
+    if len(answers) < total_questions:
+        return False
+    
+    # 꼬리질문이 있는 답변은 꼬리질문 답변도 있는지 확인
+    for answer in answers:
+        if answer.follow_up_question and not answer.follow_up_answer:
+            return False
+    
+    # 모든 조건 충족: 상태를 pending_evaluation으로 변경
+    interview_set.status = InterviewSetStatus.PENDING_EVALUATION.value
+    db.add(interview_set)
+    db.commit()
+    return True
+
+
 @router.post(
     "/sets",
     response_model=InterviewSetCreateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="면접 세트 생성",
-    description="질문 개수를 선택하여 면접 세트를 생성합니다.",
+    description="""
+새로운 면접 세트를 생성하고 질문을 배정합니다.
+
+**질문 조합 비율:**
+- 공통 질문: 40%
+- 직무 질문: 30%
+- 외국인특화 질문: 30%
+
+**상태 흐름:**
+1. 생성 시: `in_progress` (면접중)
+2. 모든 답변 완료 시: `pending_evaluation` (평가대기) - 자동 전환
+3. 평가 완료 시: `completed` (평가완료)
+""",
     responses={
-        201: {"description": "면접 세트 생성 성공"},
+        201: {"description": "면접 세트 생성 성공 - set_id와 배정된 질문 목록 반환"},
         400: {
             "description": "질문 부족 - 데이터베이스에 충분한 질문이 없음",
             "content": {
@@ -90,6 +149,8 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
     """
     try:
         user_id = current_user["sub"]
+        now = datetime.now(timezone.utc)
+        title = (body.title or "").strip() or f"{body.job_type.value.upper()} {body.level.value.upper()} 면접 ({now.date().isoformat()})"
         
         # 질문 조합 (면접 세트 생성 전에 먼저 확인)
         question_count = body.question_count
@@ -137,9 +198,10 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
         # 질문이 충분하면 면접 세트 생성
         interview_set = InterviewSet(
             user_id=user_id,
+            title=title,
             job_type=body.job_type.value,
             level=body.level.value,
-            status="in_progress",
+            status=InterviewSetStatus.IN_PROGRESS.value,
         )
         db.add(interview_set)
         db.commit()
@@ -189,9 +251,34 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
     "/answers",
     response_model=SubmitAnswerResponse,
     summary="답변 제출 및 꼬리질문 생성",
-    description="면접 답변을 제출하고 필요시 꼬리질문을 생성합니다.",
+    description="""
+면접 질문에 대한 답변을 제출합니다.
+
+**꼬리질문 기능:**
+- `enable_follow_up: true`로 설정하면 AI가 압박 꼬리질문을 생성합니다.
+- 생성된 꼬리질문은 `/follow-up-answers` API로 답변해야 합니다.
+
+**자동 상태 전환:**
+- 꼬리질문이 없는 마지막 질문 답변 시, 모든 답변이 완료되었으면 `pending_evaluation`으로 자동 전환됩니다.
+
+**중복 방지:**
+- 같은 `set_id` + `question_order`로 중복 제출 시 409 에러가 발생합니다.
+""",
     responses={
-        200: {"description": "답변 제출 성공"},
+        200: {"description": "답변 제출 성공 - answer_id와 꼬리질문(있는 경우) 반환"},
+        409: {
+            "description": "중복 답변 - 동일한 면접 세트의 동일한 질문(order)에 이미 답변이 존재함",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "duplicate_answer": {
+                            "summary": "중복 답변",
+                            "value": {"detail": "이미 제출된 질문에 대한 답변이 존재합니다"},
+                        }
+                    }
+                }
+            },
+        },
         401: {
             "description": "인증 실패 또는 유효하지 않은 토큰",
             "content": {
@@ -280,6 +367,18 @@ def submit_answer(body: SubmitAnswerRequest, db: DB, current_user: CurrentUser):
                 detail="음성 전사 기능은 아직 구현되지 않았습니다",
             )
 
+        # 동일한 면접 세트의 동일한 질문(order)에 대해 중복 답변 제출 방지
+        existing_answer = db.exec(
+            select(InterviewAnswer)
+            .where(InterviewAnswer.set_id == body.set_id)
+            .where(InterviewAnswer.question_order == body.question_order)
+        ).first()
+        if existing_answer:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="이미 제출된 질문에 대한 답변이 존재합니다",
+            )
+
         follow_up_question = None
 
         # 꼬리질문 생성
@@ -311,6 +410,10 @@ def submit_answer(body: SubmitAnswerRequest, db: DB, current_user: CurrentUser):
         db.commit()
         db.refresh(answer)
 
+        # 꼬리질문이 없으면 바로 상태 체크 (모든 답변 완료 시 pending_evaluation으로 전환)
+        if not follow_up_question:
+            check_and_update_interview_status(db, body.set_id)
+
         return SubmitAnswerResponse(
             answer_id=answer.id,
             follow_up_question=follow_up_question,
@@ -329,7 +432,17 @@ def submit_answer(body: SubmitAnswerRequest, db: DB, current_user: CurrentUser):
     "/follow-up-answers",
     response_model=SubmitFollowUpResponse,
     summary="꼬리질문 답변 제출",
-    description="꼬리질문에 대한 답변을 제출합니다.",
+    description="""
+AI가 생성한 꼬리질문에 대한 답변을 제출합니다.
+
+**사용 조건:**
+- `/answers` API에서 `enable_follow_up: true`로 답변을 제출해야 꼬리질문이 생성됩니다.
+- 반환된 `answer_id`를 사용하여 이 API를 호출합니다.
+
+**자동 상태 전환:**
+- 모든 질문과 꼬리질문 답변이 완료되면 면접 세트 상태가 `pending_evaluation`으로 자동 전환됩니다.
+- 이후 `/sets/{set_id}/complete` API로 AI 평가를 요청할 수 있습니다.
+""",
     responses={
         200: {"description": "꼬리질문 답변 제출 성공"},
         401: {
@@ -411,6 +524,9 @@ def submit_follow_up_answer(body: SubmitFollowUpRequest, db: DB, current_user: C
         db.add(answer)
         db.commit()
 
+        # 상태 체크 (모든 답변 + 꼬리질문 답변 완료 시 pending_evaluation으로 전환)
+        check_and_update_interview_status(db, answer.set_id)
+
         return SubmitFollowUpResponse(success=True, transcript=transcript)
     except HTTPException:
         raise
@@ -424,11 +540,51 @@ def submit_follow_up_answer(body: SubmitFollowUpRequest, db: DB, current_user: C
 @router.post(
     "/sets/{set_id}/complete",
     response_model=InterviewEvaluationResponse,
-    summary="면접 완료 및 평가 생성",
-    description="면접을 완료하고 AI 평가를 생성합니다.",
+    summary="면접 완료 및 AI 평가 생성",
+    description="""
+면접을 완료하고 AI 종합 평가를 생성합니다.
+
+**호출 조건:**
+- 면접 세트 상태가 `pending_evaluation`이어야 합니다.
+- 모든 질문에 답변하고, 꼬리질문이 있는 경우 꼬리질문 답변도 완료해야 합니다.
+- 상태는 답변 제출 시 자동으로 `pending_evaluation`으로 전환됩니다.
+
+**평가 항목 (각 0-100점):**
+- logic: 논리성 - 답변의 논리적 구조와 일관성
+- evidence: 근거 - 구체적인 사례와 근거 제시
+- job_understanding: 직무이해도 - 지원 직무에 대한 이해도
+- formality: 한국어 격식 - 비즈니스 한국어 사용 적절성
+- completeness: 완성도 - 답변의 완성도와 충실성
+
+**결과:**
+- 평가 완료 후 상태가 `completed`로 변경됩니다.
+- 종합 피드백과 질문별 상세 피드백이 반환됩니다.
+""",
     responses={
-        200: {"description": "면접 평가 완료"},
-        400: {"description": "답변이 없습니다"},
+        200: {"description": "면접 평가 완료 - 5가지 항목 점수와 피드백 반환"},
+        400: {
+            "description": "평가 불가 - 답변이 완료되지 않음",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "not_ready": {
+                            "summary": "평가 대기 상태가 아님",
+                            "value": {
+                                "detail": "아직 모든 답변이 완료되지 않았습니다. 모든 질문에 답변하고, 꼬리질문이 있는 경우 꼬리질문 답변도 완료해주세요."
+                            }
+                        },
+                        "already_completed": {
+                            "summary": "이미 평가 완료됨",
+                            "value": {"detail": "이미 평가가 완료된 면접 세트입니다"}
+                        },
+                        "no_answers": {
+                            "summary": "답변 없음",
+                            "value": {"detail": "답변이 없습니다"}
+                        }
+                    }
+                }
+            }
+        },
         401: {
             "description": "인증 실패 또는 유효하지 않은 토큰",
             "content": {
@@ -494,6 +650,20 @@ def complete_interview(set_id: UUID, db: DB, current_user: CurrentUser):
                 detail="다른 사용자의 면접 세트는 완료할 수 없습니다"
             )
 
+        # 상태 확인: 이미 평가 완료된 경우
+        if interview_set.status == InterviewSetStatus.COMPLETED.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="이미 평가가 완료된 면접 세트입니다"
+            )
+
+        # 상태 확인: 평가 대기 상태가 아닌 경우 (아직 답변이 완료되지 않음)
+        if interview_set.status != InterviewSetStatus.PENDING_EVALUATION.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="아직 모든 답변이 완료되지 않았습니다. 모든 질문에 답변하고, 꼬리질문이 있는 경우 꼬리질문 답변도 완료해주세요."
+            )
+
         # 답변 조회
         answers = db.exec(
             select(InterviewAnswer)
@@ -510,9 +680,12 @@ def complete_interview(set_id: UUID, db: DB, current_user: CurrentUser):
         answers_data = []
         for answer in answers:
             question = db.get(Question, answer.question_id)
+            question_text = question.question if question else None
+
             answers_data.append(
                 {
-                    "question": question.question if question else "알 수 없는 질문",
+                    "question": question_text or "알 수 없는 질문",
+                    "question_id": str(answer.question_id),
                     "user_answer": answer.user_answer,
                     "follow_up_question": answer.follow_up_question,
                     "follow_up_answer": answer.follow_up_answer,
@@ -548,7 +721,7 @@ def complete_interview(set_id: UUID, db: DB, current_user: CurrentUser):
         db.add(evaluation)
 
         # 면접 세트 완료 처리
-        interview_set.status = "completed"
+        interview_set.status = InterviewSetStatus.COMPLETED.value
         interview_set.completed_at = datetime.now(timezone.utc)
         db.add(interview_set)
 
@@ -579,10 +752,23 @@ def complete_interview(set_id: UUID, db: DB, current_user: CurrentUser):
 @router.get(
     "/sets/{set_id}",
     response_model=InterviewSetDetailResponse,
-    summary="면접 세트 조회",
-    description="면접 세트의 상세 정보를 조회합니다.",
+    summary="면접 세트 상세 조회",
+    description="""
+면접 세트의 상세 정보를 조회합니다.
+
+**이어하기 기능:**
+- `questions`: 원래 배정된 질문 목록 (순서 포함)
+- `answers`: 지금까지 제출된 답변 목록
+- `next_question_order`: 다음에 답할 질문 순서 (모든 답변 완료 시 null)
+
+**사용 예시:**
+1. 중단된 면접 세트의 set_id로 이 API 호출
+2. `next_question_order`로 다음 질문 확인
+3. `questions`에서 해당 order의 질문 찾아서 사용자에게 표시
+4. 답변 제출 후 다시 이 API 호출하여 진행 상황 확인
+""",
     responses={
-        200: {"description": "면접 세트 조회 성공"},
+        200: {"description": "면접 세트 상세 정보 반환"},
         401: {
             "description": "인증 실패 또는 유효하지 않은 토큰",
             "content": {
@@ -726,10 +912,19 @@ def get_interview_set(set_id: UUID, db: DB, current_user: CurrentUser):
 @router.get(
     "/sets",
     response_model=list[InterviewSetResponse],
-    summary="면접 세트 목록",
-    description="현재 로그인한 사용자의 면접 세트 목록을 조회합니다.",
+    summary="면접 세트 목록 조회",
+    description="""
+현재 로그인한 사용자의 면접 세트 목록을 조회합니다.
+
+**정렬:** 최신순 (created_at 내림차순)
+
+**상태별 의미:**
+- `in_progress`: 면접중 - 아직 답변이 완료되지 않음
+- `pending_evaluation`: 평가대기 - 모든 답변 완료, AI 평가 대기
+- `completed`: 평가완료 - AI 평가까지 완료됨
+""",
     responses={
-        200: {"description": "면접 세트 목록 조회 성공"},
+        200: {"description": "면접 세트 목록 반환 (최신순 정렬)"},
         401: {
             "description": "인증 실패 또는 유효하지 않은 토큰",
             "content": {

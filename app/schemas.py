@@ -198,8 +198,10 @@ class InterviewSetDetailResponse(BaseModel):
     """면접 세트 상세 응답"""
 
     set: InterviewSetResponse
+    questions: list[QuestionInfo] = Field(default_factory=list, description="면접 세트에 포함된 질문 목록 (이어하기용)")
     answers: list[InterviewAnswerResponse]
     evaluation: InterviewEvaluationResponse | None
+    next_question_order: int | None = Field(default=None, description="다음에 답할 질문 순서(없으면 None)")
 
 
 # === 답변 노트 ===

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import answer_notes, interview, practice, questions
+from app.api import answer_notes, interview, questions
 from app.core.database import create_db_and_tables, seed_initial_questions
 
 
@@ -45,10 +45,6 @@ app = FastAPI(
             "name": "Interview",
             "description": "면접 세트 및 평가 API",
         },
-        # {
-        #     "name": "Practice",
-        #     "description": "AI 답변 평가 API",
-        # },
         {
             "name": "Answer Notes",
             "description": "답변 노트 관리 API",
@@ -100,7 +96,6 @@ async def http_exception_handler(request, exc: StarletteHTTPException):
 
 # 라우터 등록
 app.include_router(questions.router)  # 어드민 전용: /admin/questions
-# app.include_router(practice.router)  # 일반 사용자: /practice
 app.include_router(interview.router)  # 일반 사용자: /interview
 app.include_router(answer_notes.router)  # 일반 사용자: /answer-notes
 

@@ -11,6 +11,7 @@ from app.models import (
     InterviewAnswer,
     InterviewEvaluation,
     InterviewSet,
+    InterviewSetQuestion,
     Question,
 )
 from app.schemas import (
@@ -143,6 +144,21 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
         db.add(interview_set)
         db.commit()
         db.refresh(interview_set)
+
+        # 생성된 질문 목록을 DB에 저장 (이어하기 기능용)
+        set_questions = []
+        for idx, q in enumerate(selected_questions):
+            set_questions.append(
+                InterviewSetQuestion(
+                    set_id=interview_set.id,
+                    question_id=q.id,
+                    question_order=idx + 1,
+                    category=q.category,
+                )
+            )
+        for sq in set_questions:
+            db.add(sq)
+        db.commit()
 
         # 응답 생성
         questions_info = [
@@ -634,6 +650,25 @@ def get_interview_set(set_id: UUID, db: DB, current_user: CurrentUser):
         .order_by(InterviewAnswer.question_order)
     ).all()
 
+    # 세트에 포함된 질문 목록 조회 (이어하기용)
+    set_question_rows = db.exec(
+        select(InterviewSetQuestion, Question)
+        .join(Question, InterviewSetQuestion.question_id == Question.id)
+        .where(InterviewSetQuestion.set_id == set_id)
+        .order_by(InterviewSetQuestion.question_order)
+    ).all()
+
+    questions_info: list[QuestionInfo] = []
+    for sq, q in set_question_rows:
+        questions_info.append(
+            QuestionInfo(
+                id=q.id,
+                question=q.question,
+                order=sq.question_order,
+                category=sq.category,
+            )
+        )
+
     # 각 답변에 질문 정보 추가
     answers_with_questions = []
     for answer in answers:
@@ -671,10 +706,20 @@ def get_interview_set(set_id: UUID, db: DB, current_user: CurrentUser):
             created_at=evaluation.created_at,
         )
 
+    # 다음 질문 order 계산 (질문 목록이 있으면, 아직 답하지 않은 가장 작은 order)
+    answered_orders = {a.question_order for a in answers}
+    next_order = None
+    for qi in questions_info:
+        if qi.order not in answered_orders:
+            next_order = qi.order
+            break
+
     return InterviewSetDetailResponse(
         set=InterviewSetResponse.model_validate(interview_set),
+        questions=questions_info,
         answers=answers_with_questions,
         evaluation=evaluation_response,
+        next_question_order=next_order,
     )
 
 

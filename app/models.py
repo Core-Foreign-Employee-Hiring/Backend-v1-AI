@@ -134,3 +134,20 @@ class QAHistory(SQLModel, table=True):
 
     # 관계
     question: Question = Relationship(back_populates="qa_history")
+
+
+class InterviewSetQuestion(SQLModel, table=True):
+    """면접 세트에 포함된 질문 목록 (이어하기용)"""
+
+    __tablename__ = "interview_set_questions"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    set_id: UUID = Field(foreign_key="interview_sets.id", index=True)
+    question_id: UUID = Field(foreign_key="questions.id", index=True)
+    question_order: int = Field(index=True)
+    category: str = Field(index=True)  # 'common', 'job', 'foreigner'
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # 관계 (선택)
+    interview_set: InterviewSet = Relationship()
+    question: Question = Relationship()

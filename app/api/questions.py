@@ -37,17 +37,14 @@ router = APIRouter(prefix="/admin/questions", tags=["Admin - Questions"])
             "content": {
                 "application/json": {
                     "examples": {
-                        "not_authenticated": {
-                            "summary": "인증되지 않음",
-                            "value": {"detail": "Not authenticated"}
-                        },
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
                         "invalid_token": {
                             "summary": "유효하지 않은 토큰",
-                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"}
-                        }
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
                     }
                 }
-            }
+            },
         },
     },
 )
@@ -81,33 +78,26 @@ def list_questions(db: DB, current_user: CurrentUser):
             "content": {
                 "application/json": {
                     "examples": {
-                        "not_authenticated": {
-                            "summary": "인증되지 않음",
-                            "value": {"detail": "Not authenticated"}
-                        },
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
                         "invalid_token": {
                             "summary": "유효하지 않은 토큰",
-                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"}
-                        }
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
                     }
                 }
-            }
+            },
         },
         404: {
             "description": "질문을 찾을 수 없음",
-            "content": {
-                "application/json": {"example": {"detail": "Question not found"}}
-            },
-        }
+            "content": {"application/json": {"example": {"detail": "Question not found"}}},
+        },
     },
 )
 def get_question(question_id: UUID, db: DB, current_user: CurrentUser):
     """질문 상세 정보를 조회합니다."""
     question = db.get(Question, question_id)
     if not question:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Question not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     return question
 
 
@@ -143,17 +133,14 @@ def get_question(question_id: UUID, db: DB, current_user: CurrentUser):
             "content": {
                 "application/json": {
                     "examples": {
-                        "not_authenticated": {
-                            "summary": "인증되지 않음",
-                            "value": {"detail": "Not authenticated"}
-                        },
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
                         "invalid_token": {
                             "summary": "유효하지 않은 토큰",
-                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"}
-                        }
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
                     }
                 }
-            }
+            },
         },
         422: {
             "description": "유효성 검사 실패",
@@ -164,14 +151,8 @@ def get_question(question_id: UUID, db: DB, current_user: CurrentUser):
                             "summary": "필수 필드 누락",
                             "value": {
                                 "detail": "유효성 검사 실패",
-                                "errors": [
-                                    {
-                                        "field": "question",
-                                        "message": "Field required",
-                                        "type": "missing"
-                                    }
-                                ]
-                            }
+                                "errors": [{"field": "question", "message": "Field required", "type": "missing"}],
+                            },
                         },
                         "invalid_category": {
                             "summary": "잘못된 카테고리",
@@ -181,10 +162,10 @@ def get_question(question_id: UUID, db: DB, current_user: CurrentUser):
                                     {
                                         "field": "category",
                                         "message": "Input should be 'common', 'job' or 'foreigner'",
-                                        "type": "enum"
+                                        "type": "enum",
                                     }
-                                ]
-                            }
+                                ],
+                            },
                         },
                         "invalid_job_type": {
                             "summary": "잘못된 직무 타입",
@@ -194,10 +175,10 @@ def get_question(question_id: UUID, db: DB, current_user: CurrentUser):
                                     {
                                         "field": "job_type",
                                         "message": "Input should be 'it' or 'marketing'",
-                                        "type": "enum"
+                                        "type": "enum",
                                     }
-                                ]
-                            }
+                                ],
+                            },
                         },
                         "invalid_level": {
                             "summary": "잘못된 레벨",
@@ -207,14 +188,14 @@ def get_question(question_id: UUID, db: DB, current_user: CurrentUser):
                                     {
                                         "field": "level",
                                         "message": "Input should be 'intern', 'entry' or 'experienced'",
-                                        "type": "enum"
+                                        "type": "enum",
                                     }
-                                ]
-                            }
-                        }
+                                ],
+                            },
+                        },
                     }
                 }
-            }
+            },
         },
     },
 )
@@ -262,17 +243,14 @@ def create_question(body: QuestionCreate, db: DB, current_user: CurrentUser):
             "content": {
                 "application/json": {
                     "examples": {
-                        "not_authenticated": {
-                            "summary": "인증되지 않음",
-                            "value": {"detail": "Not authenticated"}
-                        },
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
                         "invalid_token": {
                             "summary": "유효하지 않은 토큰",
-                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"}
-                        }
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
                     }
                 }
-            }
+            },
         },
         404: {"description": "질문을 찾을 수 없음"},
         422: {
@@ -288,10 +266,10 @@ def create_question(body: QuestionCreate, db: DB, current_user: CurrentUser):
                                     {
                                         "field": "question_id",
                                         "message": "Input should be a valid UUID",
-                                        "type": "uuid_parsing"
+                                        "type": "uuid_parsing",
                                     }
-                                ]
-                            }
+                                ],
+                            },
                         },
                         "invalid_category": {
                             "summary": "잘못된 카테고리",
@@ -301,14 +279,14 @@ def create_question(body: QuestionCreate, db: DB, current_user: CurrentUser):
                                     {
                                         "field": "category",
                                         "message": "Input should be 'common', 'job' or 'foreigner'",
-                                        "type": "enum"
+                                        "type": "enum",
                                     }
-                                ]
-                            }
-                        }
+                                ],
+                            },
+                        },
                     }
                 }
-            }
+            },
         },
     },
 )
@@ -316,9 +294,7 @@ def update_question(question_id: UUID, body: QuestionUpdate, db: DB, current_use
     """질문을 수정합니다."""
     question = db.get(Question, question_id)
     if not question:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Question not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
 
     question.question = body.question
     question.category = body.category
@@ -353,17 +329,14 @@ def update_question(question_id: UUID, body: QuestionUpdate, db: DB, current_use
             "content": {
                 "application/json": {
                     "examples": {
-                        "not_authenticated": {
-                            "summary": "인증되지 않음",
-                            "value": {"detail": "Not authenticated"}
-                        },
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
                         "invalid_token": {
                             "summary": "유효하지 않은 토큰",
-                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"}
-                        }
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
                     }
                 }
-            }
+            },
         },
         404: {"description": "질문을 찾을 수 없음"},
     },
@@ -372,10 +345,7 @@ def delete_question(question_id: UUID, db: DB, current_user: CurrentUser):
     """질문을 삭제합니다."""
     question = db.get(Question, question_id)
     if not question:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Question not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
 
     db.delete(question)
     db.commit()
-

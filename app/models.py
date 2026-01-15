@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from uuid import UUID, uuid4
 
@@ -7,6 +7,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 class JobType(str, Enum):
     """직무 타입 (확장 가능)"""
+
     MARKETING = "marketing"
     IT = "it"
     # 향후 추가 가능: SALES = "sales", HR = "hr", etc.
@@ -14,6 +15,7 @@ class JobType(str, Enum):
 
 class Level(str, Enum):
     """레벨 (확장 가능)"""
+
     INTERN = "intern"
     ENTRY = "entry"
     EXPERIENCED = "experienced"
@@ -22,6 +24,7 @@ class Level(str, Enum):
 
 class InterviewSetStatus(str, Enum):
     """면접 세트 상태"""
+
     IN_PROGRESS = "in_progress"  # 면접중: 아직 답변 진행 중
     PENDING_EVALUATION = "pending_evaluation"  # 평가대기: 모든 답변 완료, 평가 대기
     COMPLETED = "completed"  # 평가완료: AI 평가 완료
@@ -39,12 +42,12 @@ class Question(SQLModel, table=True):
     level: str | None = Field(default=None)  # Level enum 값
     model_answer: str
     reasoning: str
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     # 관계
     interview_answers: list["InterviewAnswer"] = Relationship(back_populates="question")
-    answer_notes: list["AnswerNote"] = Relationship(back_populates="question", cascade_delete=True)
+    answer_note_entries: list["AnswerNoteEntry"] = Relationship(back_populates="question", cascade_delete=True)
     qa_history: list["QAHistory"] = Relationship(back_populates="question", cascade_delete=True)
 
 
@@ -59,7 +62,8 @@ class InterviewSet(SQLModel, table=True):
     job_type: str = Field(index=True)  # JobType enum 값
     level: str = Field(index=True)  # Level enum 값
     status: str = Field(default=InterviewSetStatus.IN_PROGRESS.value, index=True)  # InterviewSetStatus enum 값
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = Field(default=None)
 
     # 관계
@@ -79,7 +83,7 @@ class InterviewAnswer(SQLModel, table=True):
     user_answer: str
     follow_up_question: str | None = Field(default=None)
     follow_up_answer: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     # 관계
     interview_set: InterviewSet = Relationship(back_populates="answers")
@@ -100,29 +104,45 @@ class InterviewEvaluation(SQLModel, table=True):
     completeness: int  # 완성도 (0-100)
     overall_feedback: str
     detailed_feedback: str  # JSON 형식
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     # 관계
     interview_set: InterviewSet = Relationship(back_populates="evaluations")
 
 
 class AnswerNote(SQLModel, table=True):
-    """답변 노트 모델 (유저가 저장한 최종 답변)"""
+    """답변 노트 모델 (여러 답변을 묶는 노트)"""
 
     __tablename__ = "answer_notes"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     user_id: str = Field(index=True)  # 유저 ID (JWT sub)
-    question_id: UUID = Field(foreign_key="questions.id", index=True)
-    initial_answer: str
-    first_feedback: str | None = Field(default=None)
-    second_feedback: str | None = Field(default=None)
-    final_answer: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    title: str = Field(index=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     # 관계
-    question: Question = Relationship(back_populates="answer_notes")
+    entries: list["AnswerNoteEntry"] = Relationship(back_populates="note", cascade_delete=True)
+
+
+class AnswerNoteEntry(SQLModel, table=True):
+    """답변 노트 항목 모델 (질문별 답변)"""
+
+    __tablename__ = "answer_note_entries"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    note_id: UUID = Field(foreign_key="answer_notes.id", index=True)
+    question_id: UUID = Field(foreign_key="questions.id", index=True)
+    initial_answer: str
+    feedback: str | None = Field(default=None)
+    improvements: str | None = Field(default=None)
+    final_answer: str | None = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    # 관계
+    note: AnswerNote = Relationship(back_populates="entries")
+    question: Question = Relationship(back_populates="answer_note_entries")
 
 
 class QAHistory(SQLModel, table=True):
@@ -138,7 +158,7 @@ class QAHistory(SQLModel, table=True):
     ai_response: str
     score: int  # 0-100
     hints: str
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     # 관계
     question: Question = Relationship(back_populates="qa_history")
@@ -154,7 +174,7 @@ class InterviewSetQuestion(SQLModel, table=True):
     question_id: UUID = Field(foreign_key="questions.id", index=True)
     question_order: int = Field(index=True)
     category: str = Field(index=True)  # 'common', 'job', 'foreigner'
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     # 관계 (선택)
     interview_set: InterviewSet = Relationship()

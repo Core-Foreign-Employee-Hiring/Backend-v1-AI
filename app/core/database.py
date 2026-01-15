@@ -19,18 +19,18 @@ def seed_initial_questions():
     if not settings.seed_initial_questions:
         print("[INFO] 초기 질문 시딩 비활성화됨 (SEED_INITIAL_QUESTIONS=False)")
         return
-    
+
     from app.models import Question
-    
+
     with Session(engine) as session:
         # 이미 질문이 있으면 시딩하지 않음
         existing_count = len(session.exec(select(Question)).all())
         if existing_count > 0:
             print(f"[INFO] 이미 {existing_count}개의 질문이 존재합니다. 시딩을 건너뜁니다.")
             return
-        
+
         print("[INFO] 초기 테스트 질문 시딩 시작...")
-        
+
         # 공통 질문 4개
         common_questions = [
             Question(
@@ -58,7 +58,7 @@ def seed_initial_questions():
                 reasoning="구체적이면서도 현실적인 비전을 제시하고, 회사에서의 장기 근속 의지를 보여줘야 합니다.",
             ),
         ]
-        
+
         # IT 직무 질문 3개
         it_questions = [
             Question(
@@ -86,7 +86,7 @@ def seed_initial_questions():
                 reasoning="지속적인 학습 의지와 기술 트렌드에 대한 관심을 보여줘야 합니다. 단순 이론이 아닌 실습 경험을 언급하는 것이 좋습니다.",
             ),
         ]
-        
+
         # 외국인특화 질문 3개
         foreigner_questions = [
             Question(
@@ -108,15 +108,15 @@ def seed_initial_questions():
                 reasoning="장기 근속 의지와 구체적인 계획을 보여줘야 회사가 안심하고 채용할 수 있습니다.",
             ),
         ]
-        
+
         # 모든 질문 추가
         all_questions = common_questions + it_questions + foreigner_questions
-        
+
         for question in all_questions:
             session.add(question)
-        
+
         session.commit()
-        
+
         print(f"[SUCCESS] {len(all_questions)}개의 초기 질문이 추가되었습니다.")
         print(f"  - 공통 질문: {len(common_questions)}개")
         print(f"  - IT 직무 질문: {len(it_questions)}개")
@@ -127,4 +127,3 @@ def get_db() -> Generator[Session, None, None]:
     """데이터베이스 세션 의존성"""
     with Session(engine) as session:
         yield session
-

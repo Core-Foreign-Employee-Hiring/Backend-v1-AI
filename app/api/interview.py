@@ -1,12 +1,12 @@
 import json
 import random
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-from sqlmodel import desc, select
+from sqlmodel import asc, desc, select
 
-from app.core.auth import CurrentUser, DB
+from app.core.auth import DB, CurrentUser
 from app.models import (
     InterviewAnswer,
     InterviewEvaluation,
@@ -35,7 +35,7 @@ router = APIRouter(prefix="/interview", tags=["Interview"])
 
 def shuffle_array(arr: list) -> list:
     """배열을 랜덤하게 섞습니다."""
-    shuffled = arr.copy()
+    shuffled = list(arr)
     random.shuffle(shuffled)
     return shuffled
 
@@ -43,11 +43,11 @@ def shuffle_array(arr: list) -> list:
 def check_and_update_interview_status(db: "DB", set_id: UUID) -> bool:
     """
     면접 세트의 모든 답변이 완료되었는지 확인하고, 완료 시 상태를 pending_evaluation으로 변경합니다.
-    
+
     조건:
     - 세트에 포함된 모든 질문에 대해 답변이 있어야 함
     - 꼬리질문이 있는 답변은 꼬리질문 답변도 있어야 함
-    
+
     Returns:
         True if status was changed to pending_evaluation, False otherwise
     """
@@ -55,30 +55,26 @@ def check_and_update_interview_status(db: "DB", set_id: UUID) -> bool:
     interview_set = db.get(InterviewSet, set_id)
     if not interview_set or interview_set.status != InterviewSetStatus.IN_PROGRESS.value:
         return False
-    
+
     # 세트에 포함된 질문 개수
-    set_questions = db.exec(
-        select(InterviewSetQuestion).where(InterviewSetQuestion.set_id == set_id)
-    ).all()
+    set_questions = db.exec(select(InterviewSetQuestion).where(InterviewSetQuestion.set_id == set_id)).all()
     total_questions = len(set_questions)
-    
+
     if total_questions == 0:
         return False
-    
+
     # 답변 조회
-    answers = db.exec(
-        select(InterviewAnswer).where(InterviewAnswer.set_id == set_id)
-    ).all()
-    
+    answers = db.exec(select(InterviewAnswer).where(InterviewAnswer.set_id == set_id)).all()
+
     # 모든 질문에 답변했는지 확인
     if len(answers) < total_questions:
         return False
-    
+
     # 꼬리질문이 있는 답변은 꼬리질문 답변도 있는지 확인
     for answer in answers:
         if answer.follow_up_question and not answer.follow_up_answer:
             return False
-    
+
     # 모든 조건 충족: 상태를 pending_evaluation으로 변경
     interview_set.status = InterviewSetStatus.PENDING_EVALUATION.value
     db.add(interview_set)
@@ -115,28 +111,25 @@ def check_and_update_interview_status(db: "DB", set_id: UUID) -> bool:
                             "summary": "질문 부족",
                             "value": {
                                 "detail": "데이터베이스에 충분한 질문이 없습니다. 요청: 5개, 사용 가능: 2개. (공통: 1, 직무(it): 1, 외국인특화: 0)"
-                            }
+                            },
                         }
                     }
                 }
-            }
+            },
         },
         401: {
             "description": "인증 실패 또는 유효하지 않은 토큰",
             "content": {
                 "application/json": {
                     "examples": {
-                        "not_authenticated": {
-                            "summary": "인증되지 않음",
-                            "value": {"detail": "Not authenticated"}
-                        },
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
                         "invalid_token": {
                             "summary": "유효하지 않은 토큰",
-                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"}
-                        }
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
                     }
                 }
-            }
+            },
         },
         500: {"description": "서버 오류"},
     },
@@ -144,14 +137,16 @@ def check_and_update_interview_status(db: "DB", set_id: UUID) -> bool:
 def create_interview_set(body: InterviewSetCreate, db: DB, current_user: CurrentUser):
     """
     면접 세트를 생성합니다.
-    
+
     질문 조합: 공통 40%, 직무 30%, 외국인 30% 비율로 선택
     """
     try:
         user_id = current_user["sub"]
-        now = datetime.now(timezone.utc)
-        title = (body.title or "").strip() or f"{body.job_type.value.upper()} {body.level.value.upper()} 면접 ({now.date().isoformat()})"
-        
+        now = datetime.now(UTC)
+        title = (
+            body.title or ""
+        ).strip() or f"{body.job_type.value.upper()} {body.level.value.upper()} 면접 ({now.date().isoformat()})"
+
         # 질문 조합 (면접 세트 생성 전에 먼저 확인)
         question_count = body.question_count
         common_count = int(question_count * 0.4)
@@ -159,30 +154,26 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
         foreigner_count = question_count - common_count - job_count
 
         # 공통 질문
-        common_questions = db.exec(
-            select(Question).where(Question.category == "common").limit(20)
-        ).all()
+        common_questions = list(db.exec(select(Question).where(Question.category == "common").limit(20)).all())
 
         # 직무 질문
-        job_questions = db.exec(
-            select(Question)
-            .where(Question.category == "job")
-            .where(Question.job_type == body.job_type.value)
-            .limit(20)
-        ).all()
+        job_questions = list(
+            db.exec(
+                select(Question)
+                .where(Question.category == "job")
+                .where(Question.job_type == body.job_type.value)
+                .limit(20)
+            ).all()
+        )
 
         # 외국인특화 질문
-        foreigner_questions = db.exec(
-            select(Question).where(Question.category == "foreigner").limit(20)
-        ).all()
+        foreigner_questions = list(db.exec(select(Question).where(Question.category == "foreigner").limit(20)).all())
 
         # 랜덤 선택
         selected_questions = [
-            *shuffle_array(common_questions)[:min(common_count, len(common_questions))],
-            *shuffle_array(job_questions)[:min(job_count, len(job_questions))],
-            *shuffle_array(foreigner_questions)[
-                :min(foreigner_count, len(foreigner_questions))
-            ],
+            *shuffle_array(common_questions)[: min(common_count, len(common_questions))],
+            *shuffle_array(job_questions)[: min(job_count, len(job_questions))],
+            *shuffle_array(foreigner_questions)[: min(foreigner_count, len(foreigner_questions))],
         ][:question_count]
 
         # 질문이 충분하지 않으면 에러 (면접 세트 생성 전에 확인)
@@ -190,11 +181,11 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"데이터베이스에 충분한 질문이 없습니다. "
-                       f"요청: {question_count}개, 사용 가능: {len(selected_questions)}개. "
-                       f"(공통: {len(common_questions)}, 직무({body.job_type.value}): {len(job_questions)}, "
-                       f"외국인특화: {len(foreigner_questions)})"
+                f"요청: {question_count}개, 사용 가능: {len(selected_questions)}개. "
+                f"(공통: {len(common_questions)}, 직무({body.job_type.value}): {len(job_questions)}, "
+                f"외국인특화: {len(foreigner_questions)})",
             )
-        
+
         # 질문이 충분하면 면접 세트 생성
         interview_set = InterviewSet(
             user_id=user_id,
@@ -284,17 +275,14 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
             "content": {
                 "application/json": {
                     "examples": {
-                        "not_authenticated": {
-                            "summary": "인증되지 않음",
-                            "value": {"detail": "Not authenticated"}
-                        },
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
                         "invalid_token": {
                             "summary": "유효하지 않은 토큰",
-                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"}
-                        }
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
                     }
                 }
-            }
+            },
         },
         422: {
             "description": "유효성 검사 실패",
@@ -305,14 +293,8 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
                             "summary": "필수 필드 누락",
                             "value": {
                                 "detail": "유효성 검사 실패",
-                                "errors": [
-                                    {
-                                        "field": "set_id",
-                                        "message": "Field required",
-                                        "type": "missing"
-                                    }
-                                ]
-                            }
+                                "errors": [{"field": "set_id", "message": "Field required", "type": "missing"}],
+                            },
                         },
                         "invalid_uuid": {
                             "summary": "잘못된 UUID 형식",
@@ -322,10 +304,10 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
                                     {
                                         "field": "set_id",
                                         "message": "Input should be a valid UUID",
-                                        "type": "uuid_parsing"
+                                        "type": "uuid_parsing",
                                     }
-                                ]
-                            }
+                                ],
+                            },
                         },
                         "invalid_order": {
                             "summary": "잘못된 질문 순서",
@@ -335,14 +317,14 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
                                     {
                                         "field": "question_order",
                                         "message": "Input should be greater than 0",
-                                        "type": "greater_than"
+                                        "type": "greater_than",
                                     }
-                                ]
-                            }
-                        }
+                                ],
+                            },
+                        },
                     }
                 }
-            }
+            },
         },
         500: {"description": "서버 오류"},
     },
@@ -350,7 +332,7 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
 def submit_answer(body: SubmitAnswerRequest, db: DB, current_user: CurrentUser):
     """
     면접 답변을 제출합니다.
-    
+
     - userAnswer 또는 audio 중 하나는 필수입니다.
     - enableFollowUp이 true면 AI가 꼬리질문을 생성합니다.
     """
@@ -450,17 +432,14 @@ AI가 생성한 꼬리질문에 대한 답변을 제출합니다.
             "content": {
                 "application/json": {
                     "examples": {
-                        "not_authenticated": {
-                            "summary": "인증되지 않음",
-                            "value": {"detail": "Not authenticated"}
-                        },
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
                         "invalid_token": {
                             "summary": "유효하지 않은 토큰",
-                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"}
-                        }
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
                     }
                 }
-            }
+            },
         },
         404: {"description": "답변을 찾을 수 없음"},
         422: {
@@ -472,14 +451,8 @@ AI가 생성한 꼬리질문에 대한 답변을 제출합니다.
                             "summary": "답변 ID 누락",
                             "value": {
                                 "detail": "유효성 검사 실패",
-                                "errors": [
-                                    {
-                                        "field": "answer_id",
-                                        "message": "Field required",
-                                        "type": "missing"
-                                    }
-                                ]
-                            }
+                                "errors": [{"field": "answer_id", "message": "Field required", "type": "missing"}],
+                            },
                         },
                         "invalid_uuid": {
                             "summary": "잘못된 UUID 형식",
@@ -489,14 +462,14 @@ AI가 생성한 꼬리질문에 대한 답변을 제출합니다.
                                     {
                                         "field": "answer_id",
                                         "message": "Input should be a valid UUID",
-                                        "type": "uuid_parsing"
+                                        "type": "uuid_parsing",
                                     }
-                                ]
-                            }
-                        }
+                                ],
+                            },
+                        },
                     }
                 }
-            }
+            },
         },
         500: {"description": "서버 오류"},
     },
@@ -506,9 +479,7 @@ def submit_follow_up_answer(body: SubmitFollowUpRequest, db: DB, current_user: C
     try:
         answer = db.get(InterviewAnswer, body.answer_id)
         if not answer:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Answer not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Answer not found")
 
         follow_up_answer = body.follow_up_answer or ""
         transcript = None
@@ -571,36 +542,30 @@ def submit_follow_up_answer(body: SubmitFollowUpRequest, db: DB, current_user: C
                             "summary": "평가 대기 상태가 아님",
                             "value": {
                                 "detail": "아직 모든 답변이 완료되지 않았습니다. 모든 질문에 답변하고, 꼬리질문이 있는 경우 꼬리질문 답변도 완료해주세요."
-                            }
+                            },
                         },
                         "already_completed": {
                             "summary": "이미 평가 완료됨",
-                            "value": {"detail": "이미 평가가 완료된 면접 세트입니다"}
+                            "value": {"detail": "이미 평가가 완료된 면접 세트입니다"},
                         },
-                        "no_answers": {
-                            "summary": "답변 없음",
-                            "value": {"detail": "답변이 없습니다"}
-                        }
+                        "no_answers": {"summary": "답변 없음", "value": {"detail": "답변이 없습니다"}},
                     }
                 }
-            }
+            },
         },
         401: {
             "description": "인증 실패 또는 유효하지 않은 토큰",
             "content": {
                 "application/json": {
                     "examples": {
-                        "not_authenticated": {
-                            "summary": "인증되지 않음",
-                            "value": {"detail": "Not authenticated"}
-                        },
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
                         "invalid_token": {
                             "summary": "유효하지 않은 토큰",
-                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"}
-                        }
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
                     }
                 }
-            }
+            },
         },
         403: {"description": "권한 없음 (다른 사용자의 면접 세트)"},
         404: {"description": "면접 세트를 찾을 수 없음"},
@@ -617,14 +582,14 @@ def submit_follow_up_answer(body: SubmitFollowUpRequest, db: DB, current_user: C
                                     {
                                         "field": "set_id",
                                         "message": "Input should be a valid UUID",
-                                        "type": "uuid_parsing"
+                                        "type": "uuid_parsing",
                                     }
-                                ]
-                            }
+                                ],
+                            },
                         }
                     }
                 }
-            }
+            },
         },
         500: {"description": "서버 오류 - AI 평가 실패"},
     },
@@ -635,46 +600,38 @@ def complete_interview(set_id: UUID, db: DB, current_user: CurrentUser):
 
     try:
         user_id = current_user["sub"]
-        
+
         # 면접 세트 조회
         interview_set = db.get(InterviewSet, set_id)
         if not interview_set:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Interview set not found"
-            )
-        
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview set not found")
+
         # 본인의 면접 세트인지 확인
         if interview_set.user_id != user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="다른 사용자의 면접 세트는 완료할 수 없습니다"
+                status_code=status.HTTP_403_FORBIDDEN, detail="다른 사용자의 면접 세트는 완료할 수 없습니다"
             )
 
         # 상태 확인: 이미 평가 완료된 경우
         if interview_set.status == InterviewSetStatus.COMPLETED.value:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="이미 평가가 완료된 면접 세트입니다"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 평가가 완료된 면접 세트입니다")
 
         # 상태 확인: 평가 대기 상태가 아닌 경우 (아직 답변이 완료되지 않음)
         if interview_set.status != InterviewSetStatus.PENDING_EVALUATION.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="아직 모든 답변이 완료되지 않았습니다. 모든 질문에 답변하고, 꼬리질문이 있는 경우 꼬리질문 답변도 완료해주세요."
+                detail="아직 모든 답변이 완료되지 않았습니다. 모든 질문에 답변하고, 꼬리질문이 있는 경우 꼬리질문 답변도 완료해주세요.",
             )
 
         # 답변 조회
         answers = db.exec(
             select(InterviewAnswer)
             .where(InterviewAnswer.set_id == set_id)
-            .order_by(InterviewAnswer.question_order)
+            .order_by(asc(InterviewAnswer.question_order))
         ).all()
 
         if not answers:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="답변이 없습니다"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="답변이 없습니다")
 
         # 질문 정보와 함께 답변 데이터 준비
         answers_data = []
@@ -698,6 +655,7 @@ def complete_interview(set_id: UUID, db: DB, current_user: CurrentUser):
         except Exception as e:
             # 에러 로그 출력
             import traceback
+
             print(f"AI 평가 실패: {str(e)}")
             print(traceback.format_exc())
             raise HTTPException(
@@ -714,15 +672,13 @@ def complete_interview(set_id: UUID, db: DB, current_user: CurrentUser):
             formality=evaluation_data["formality"],
             completeness=evaluation_data["completeness"],
             overall_feedback=evaluation_data["overallFeedback"],
-            detailed_feedback=json.dumps(
-                evaluation_data["detailedFeedback"], ensure_ascii=False
-            ),
+            detailed_feedback=json.dumps(evaluation_data["detailedFeedback"], ensure_ascii=False),
         )
         db.add(evaluation)
 
         # 면접 세트 완료 처리
         interview_set.status = InterviewSetStatus.COMPLETED.value
-        interview_set.completed_at = datetime.now(timezone.utc)
+        interview_set.completed_at = datetime.now(UTC)
         db.add(interview_set)
 
         db.commit()
@@ -774,17 +730,14 @@ def complete_interview(set_id: UUID, db: DB, current_user: CurrentUser):
             "content": {
                 "application/json": {
                     "examples": {
-                        "not_authenticated": {
-                            "summary": "인증되지 않음",
-                            "value": {"detail": "Not authenticated"}
-                        },
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
                         "invalid_token": {
                             "summary": "유효하지 않은 토큰",
-                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"}
-                        }
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
                     }
                 }
-            }
+            },
         },
         403: {"description": "권한 없음 (다른 사용자의 면접 세트)"},
         404: {"description": "면접 세트를 찾을 수 없음"},
@@ -801,51 +754,48 @@ def complete_interview(set_id: UUID, db: DB, current_user: CurrentUser):
                                     {
                                         "field": "set_id",
                                         "message": "Input should be a valid UUID",
-                                        "type": "uuid_parsing"
+                                        "type": "uuid_parsing",
                                     }
-                                ]
-                            }
+                                ],
+                            },
                         }
                     }
                 }
-            }
+            },
         },
     },
 )
 def get_interview_set(set_id: UUID, db: DB, current_user: CurrentUser):
     """면접 세트의 상세 정보를 조회합니다."""
     user_id = current_user["sub"]
-    
+
     interview_set = db.get(InterviewSet, set_id)
     if not interview_set:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Interview set not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview set not found")
+
     # 본인의 면접 세트인지 확인
     if interview_set.user_id != user_id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="다른 사용자의 면접 세트는 조회할 수 없습니다"
+            status_code=status.HTTP_403_FORBIDDEN, detail="다른 사용자의 면접 세트는 조회할 수 없습니다"
         )
 
     # 답변 조회
     answers = db.exec(
-        select(InterviewAnswer)
-        .where(InterviewAnswer.set_id == set_id)
-        .order_by(InterviewAnswer.question_order)
+        select(InterviewAnswer).where(InterviewAnswer.set_id == set_id).order_by(asc(InterviewAnswer.question_order))
     ).all()
 
     # 세트에 포함된 질문 목록 조회 (이어하기용)
     set_question_rows = db.exec(
-        select(InterviewSetQuestion, Question)
-        .join(Question, InterviewSetQuestion.question_id == Question.id)
+        select(InterviewSetQuestion)
         .where(InterviewSetQuestion.set_id == set_id)
-        .order_by(InterviewSetQuestion.question_order)
+        .order_by(asc(InterviewSetQuestion.question_order))
     ).all()
 
     questions_info: list[QuestionInfo] = []
-    for sq, q in set_question_rows:
+    for sq in set_question_rows:
+        q = db.get(Question, sq.question_id)
+        if not q:
+            continue
         questions_info.append(
             QuestionInfo(
                 id=q.id,
@@ -873,9 +823,7 @@ def get_interview_set(set_id: UUID, db: DB, current_user: CurrentUser):
         answers_with_questions.append(answer_response)
 
     # 평가 조회
-    evaluation = db.exec(
-        select(InterviewEvaluation).where(InterviewEvaluation.set_id == set_id)
-    ).first()
+    evaluation = db.exec(select(InterviewEvaluation).where(InterviewEvaluation.set_id == set_id)).first()
 
     evaluation_response = None
     if evaluation:
@@ -930,17 +878,14 @@ def get_interview_set(set_id: UUID, db: DB, current_user: CurrentUser):
             "content": {
                 "application/json": {
                     "examples": {
-                        "not_authenticated": {
-                            "summary": "인증되지 않음",
-                            "value": {"detail": "Not authenticated"}
-                        },
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
                         "invalid_token": {
                             "summary": "유효하지 않은 토큰",
-                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"}
-                        }
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
                     }
                 }
-            }
+            },
         },
     },
 )
@@ -948,9 +893,6 @@ def list_interview_sets(db: DB, current_user: CurrentUser):
     """현재 로그인한 사용자의 면접 세트 목록을 조회합니다."""
     user_id = current_user["sub"]
     sets = db.exec(
-        select(InterviewSet)
-        .where(InterviewSet.user_id == user_id)
-        .order_by(desc(InterviewSet.created_at))
+        select(InterviewSet).where(InterviewSet.user_id == user_id).order_by(desc(InterviewSet.created_at))
     ).all()
     return sets
-

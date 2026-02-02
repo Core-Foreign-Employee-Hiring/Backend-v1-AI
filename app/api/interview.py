@@ -4,7 +4,8 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-from sqlmodel import asc, desc, select
+from sqlalchemy import func
+from sqlmodel import asc, col, desc, select
 
 from app.core.auth import DB, CurrentUser
 from app.models import (
@@ -18,6 +19,7 @@ from app.models import (
 from app.schemas import (
     InterviewAnswerResponse,
     InterviewEvaluationResponse,
+    InterviewHomeStatsResponse,
     InterviewSetCreate,
     InterviewSetCreateResponse,
     InterviewSetDetailResponse,
@@ -854,6 +856,113 @@ def get_interview_set(set_id: UUID, db: DB, current_user: CurrentUser):
         answers=answers_with_questions,
         evaluation=evaluation_response,
         next_question_order=next_order,
+    )
+
+
+@router.get(
+    "/home",
+    response_model=InterviewHomeStatsResponse,
+    summary="면접 홈 통계 조회",
+    description="""
+면접 홈 화면에 필요한 요약 통계를 조회합니다.
+
+**제공 데이터:**
+- `average_competency`: 최근 5건 평가의 평균 역량 점수 (논리성, 근거, 직무이해도, 격식, 완성도 5개 항목 평균)
+- `recent_evaluation_count`: 평균 계산에 사용된 실제 평가 건수 (최대 5개, 평가가 3개만 있으면 3 반환)
+- `total_interviews`: 전체 면접 세트 수 (상태 무관)
+- `in_progress_interviews`: 진행중 면접 수 (in_progress + pending_evaluation 상태 합계)
+- `completed_interviews`: 완료된 면접 수 (completed 상태만)
+
+**참고:**
+- `completed_interviews`는 전체 평가 완료 건수
+- `recent_evaluation_count`는 평균 계산에 실제 사용된 평가 건수 (최대 5개)
+""",
+    responses={
+        200: {
+            "description": "면접 홈 통계 반환",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "example": {
+                            "summary": "면접 홈 통계 예시",
+                            "value": {
+                                "average_competency": 78.4,
+                                "recent_evaluation_count": 5,
+                                "total_interviews": 12,
+                                "in_progress_interviews": 3,
+                                "completed_interviews": 9,
+                            },
+                        }
+                    }
+                }
+            },
+        },
+        401: {
+            "description": "인증 실패 또는 유효하지 않은 토큰",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "not_authenticated": {"summary": "인증되지 않음", "value": {"detail": "Not authenticated"}},
+                        "invalid_token": {
+                            "summary": "유효하지 않은 토큰",
+                            "value": {"detail": "유효하지 않거나 만료된 토큰입니다"},
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+def get_interview_home_stats(db: DB, current_user: CurrentUser):
+    """면접 홈 화면 통계를 조회합니다."""
+    user_id = current_user["sub"]
+
+    total_interviews = db.exec(
+        select(func.count()).select_from(InterviewSet).where(InterviewSet.user_id == user_id)
+    ).one()
+
+    in_progress_interviews = db.exec(
+        select(func.count())
+        .select_from(InterviewSet)
+        .where(InterviewSet.user_id == user_id)
+        .where(
+            col(InterviewSet.status).in_(
+                [InterviewSetStatus.IN_PROGRESS.value, InterviewSetStatus.PENDING_EVALUATION.value]
+            )
+        )
+    ).one()
+
+    completed_interviews = db.exec(
+        select(func.count())
+        .select_from(InterviewSet)
+        .where(InterviewSet.user_id == user_id)
+        .where(InterviewSet.status == InterviewSetStatus.COMPLETED.value)
+    ).one()
+
+    recent_set_ids = select(InterviewSet.id).where(InterviewSet.user_id == user_id)
+    recent_evaluations = db.exec(
+        select(InterviewEvaluation)
+        .where(col(InterviewEvaluation.set_id).in_(recent_set_ids))
+        .order_by(desc(InterviewEvaluation.created_at))
+        .limit(5)
+    ).all()
+
+    if recent_evaluations:
+        total_score = 0.0
+        for item in recent_evaluations:
+            total_score += (
+                item.logic + item.evidence + item.job_understanding + item.formality + item.completeness
+            ) / 5.0
+        average_competency = round(total_score / len(recent_evaluations), 1)
+    else:
+        average_competency = 0.0
+
+    return InterviewHomeStatsResponse(
+        average_competency=average_competency,
+        recent_evaluation_count=len(recent_evaluations),
+        total_interviews=total_interviews,
+        in_progress_interviews=in_progress_interviews,
+        completed_interviews=completed_interviews,
     )
 
 

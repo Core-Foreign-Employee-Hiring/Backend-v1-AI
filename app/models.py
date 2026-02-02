@@ -63,7 +63,6 @@ class InterviewSet(SQLModel, table=True):
     level: str = Field(index=True)  # Level enum 값
     status: str = Field(default=InterviewSetStatus.IN_PROGRESS.value, index=True)  # InterviewSetStatus enum 값
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = Field(default=None)
 
     # 관계

@@ -253,6 +253,21 @@ class InterviewEvaluationResponse(BaseModel):
     created_at: datetime = Field(description="평가 생성 일시")
 
 
+class InterviewHomeStatsResponse(BaseModel):
+    """면접 홈 통계 응답
+
+    면접 홈 화면에서 필요한 요약 통계 정보를 제공합니다.
+    """
+
+    average_competency: float = Field(description="최근 5건 면접의 평균 역량 점수 (0-100, 5개 항목 평균)")
+    recent_evaluation_count: int = Field(
+        description="평균 역량 계산에 사용된 실제 평가 건수 (최대 5개). 평가가 3개만 있으면 3, 10개 이상 있으면 5"
+    )
+    total_interviews: int = Field(description="전체 면접 세트 수")
+    in_progress_interviews: int = Field(description="진행중 면접 수 (in_progress + pending_evaluation)")
+    completed_interviews: int = Field(description="완료된 면접 수 (completed)")
+
+
 class InterviewSetDetailResponse(BaseModel):
     """면접 세트 상세 응답
 

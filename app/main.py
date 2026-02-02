@@ -17,10 +17,10 @@ async def lifespan(_: FastAPI):
     """애플리케이션 라이프사이클 관리"""
     # 시작 시 데이터베이스 테이블 생성
     create_db_and_tables()
-    
+
     # 초기 테스트 질문 시딩 (설정으로 ON/OFF 가능)
     seed_initial_questions()
-    
+
     yield
 
 
@@ -110,6 +110,7 @@ async def scalar_html():
         # Avoid CORS issues (optional)
         scalar_proxy_url="https://proxy.scalar.com",
     )
+
 
 @app.get(
     "/health",

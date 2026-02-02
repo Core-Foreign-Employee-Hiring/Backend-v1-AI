@@ -134,6 +134,8 @@ class AnswerNoteEntry(SQLModel, table=True):
     note_id: UUID = Field(foreign_key="answer_notes.id", index=True)
     question_id: UUID = Field(foreign_key="questions.id", index=True)
     initial_answer: str
+    follow_up_question: str | None = Field(default=None)
+    follow_up_answer: str | None = Field(default=None)
     feedback: str | None = Field(default=None)
     improvements: str | None = Field(default=None)
     final_answer: str | None = Field(default=None)

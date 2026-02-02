@@ -282,6 +282,8 @@ def create_answer_note(body: AnswerNoteCreate, db: DB, current_user: CurrentUser
                         note_id=note.id,
                         question_id=entry.question_id,
                         initial_answer=entry.initial_answer,
+                        follow_up_question=entry.follow_up_question,
+                        follow_up_answer=entry.follow_up_answer,
                         feedback=entry.feedback,
                         improvements=entry.improvements,
                         final_answer=entry.final_answer,
@@ -486,6 +488,8 @@ def create_answer_note_entry(note_id: UUID, body: AnswerNoteEntryCreate, db: DB,
             note_id=note.id,
             question_id=body.question_id,
             initial_answer=body.initial_answer,
+            follow_up_question=body.follow_up_question,
+            follow_up_answer=body.follow_up_answer,
             feedback=body.feedback,
             improvements=body.improvements,
             final_answer=body.final_answer,
@@ -570,6 +574,10 @@ def update_answer_note_entry(
 
         if body.initial_answer is not None:
             entry.initial_answer = body.initial_answer
+        if body.follow_up_question is not None:
+            entry.follow_up_question = body.follow_up_question
+        if body.follow_up_answer is not None:
+            entry.follow_up_answer = body.follow_up_answer
         if body.feedback is not None:
             entry.feedback = body.feedback
         if body.improvements is not None:

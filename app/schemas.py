@@ -281,6 +281,8 @@ class AnswerNoteEntryCreate(BaseModel):
 
     question_id: UUID = Field(description="연결할 질문 ID")
     initial_answer: str = Field(min_length=1, description="처음 작성한 답변 (필수)")
+    follow_up_question: str | None = Field(default=None, description="압박/꼬리질문 (선택)")
+    follow_up_answer: str | None = Field(default=None, description="압박/꼬리질문 답변 (선택)")
     feedback: str | None = Field(default=None, description="AI/코치 피드백 (선택)")
     improvements: str | None = Field(default=None, description="개선 제안 (선택)")
     final_answer: str | None = Field(default=None, description="최종 정리된 답변 (선택)")
@@ -293,6 +295,8 @@ class AnswerNoteEntryUpdate(BaseModel):
     """
 
     initial_answer: str | None = Field(default=None, description="처음 작성한 답변 (전송 시 업데이트)")
+    follow_up_question: str | None = Field(default=None, description="압박/꼬리질문 (전송 시 업데이트)")
+    follow_up_answer: str | None = Field(default=None, description="압박/꼬리질문 답변 (전송 시 업데이트)")
     feedback: str | None = Field(default=None, description="AI/코치 피드백 (전송 시 업데이트)")
     improvements: str | None = Field(default=None, description="개선 제안 (전송 시 업데이트)")
     final_answer: str | None = Field(default=None, description="최종 정리된 답변 (전송 시 업데이트)")
@@ -307,6 +311,8 @@ class AnswerNoteEntryResponse(BaseModel):
     note_id: UUID = Field(description="노트 ID")
     question_id: UUID = Field(description="연결된 질문 ID")
     initial_answer: str = Field(description="처음 작성한 답변")
+    follow_up_question: str | None = Field(description="압박/꼬리질문 (없으면 null)")
+    follow_up_answer: str | None = Field(description="압박/꼬리질문 답변 (없으면 null)")
     feedback: str | None = Field(description="AI/코치 피드백 (없으면 null)")
     improvements: str | None = Field(description="개선 제안 (없으면 null)")
     final_answer: str | None = Field(description="최종 정리된 답변 (없으면 null)")

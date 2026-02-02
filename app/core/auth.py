@@ -32,14 +32,14 @@ def get_current_user(
 ) -> dict:
     """현재 로그인한 사용자 정보 조회 (토큰에서)"""
     payload = verify_token(credentials.credentials)
-    
+
     user_id = payload.get("sub")
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="토큰에 사용자 정보가 없습니다",
         )
-    
+
     # 토큰 페이로드 전체를 반환 (필요한 정보가 모두 들어있을 수 있음)
     return payload
 

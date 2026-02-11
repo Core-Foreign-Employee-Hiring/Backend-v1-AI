@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlmodel import desc, select
 
 from app.core.auth import DB, CurrentUser
-from app.models import AnswerNote, AnswerNoteEntry, Question
+from app.models import AnswerNote, AnswerNoteEntry
 from app.schemas import (
     AnswerNoteCreate,
     AnswerNoteDetailResponse,
@@ -220,14 +220,14 @@ def get_answer_note(note_id: UUID, db: DB, current_user: CurrentUser):
                             },
                         },
                         "invalid_uuid": {
-                            "summary": "잘못된 UUID 형식",
+                            "summary": "잘못된 필드 형식",
                             "value": {
                                 "detail": "유효성 검사 실패",
                                 "errors": [
                                     {
-                                        "field": "entries.0.question_id",
-                                        "message": "Input should be a valid UUID",
-                                        "type": "uuid_parsing",
+                                        "field": "entries.0.question",
+                                        "message": "Input should be a valid string",
+                                        "type": "string_type",
                                     }
                                 ],
                             },
@@ -249,10 +249,6 @@ def get_answer_note(note_id: UUID, db: DB, current_user: CurrentUser):
                 }
             },
         },
-        404: {
-            "description": "질문을 찾을 수 없음",
-            "content": {"application/json": {"example": {"detail": "Question not found"}}},
-        },
         500: {"description": "서버 오류"},
     },
 )
@@ -271,16 +267,10 @@ def create_answer_note(body: AnswerNoteCreate, db: DB, current_user: CurrentUser
         entries: list[AnswerNoteEntry] = []
         if body.entries:
             for entry in body.entries:
-                question = db.get(Question, entry.question_id)
-                if not question:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Question not found",
-                    )
                 entries.append(
                     AnswerNoteEntry(
                         note_id=note.id,
-                        question_id=entry.question_id,
+                        question=entry.question,
                         initial_answer=entry.initial_answer,
                         follow_up_question=entry.follow_up_question,
                         follow_up_answer=entry.follow_up_answer,
@@ -428,7 +418,7 @@ def update_answer_note(note_id: UUID, body: AnswerNoteUpdate, db: DB, current_us
 답변 노트에 새로운 질문 답변 항목을 추가합니다.
 
 **필수 필드:**
-- `question_id`: 연결할 질문 ID
+- `question`: 질문 내용
 - `initial_answer`: 처음 작성한 답변
 """,
     responses={
@@ -452,12 +442,11 @@ def update_answer_note(note_id: UUID, body: AnswerNoteUpdate, db: DB, current_us
         },
         403: {"description": "권한 없음 (다른 사용자의 노트)"},
         404: {
-            "description": "노트 또는 질문을 찾을 수 없음",
+            "description": "노트를 찾을 수 없음",
             "content": {
                 "application/json": {
                     "examples": {
                         "note_not_found": {"summary": "노트 없음", "value": {"detail": "Answer note not found"}},
-                        "question_not_found": {"summary": "질문 없음", "value": {"detail": "Question not found"}},
                     }
                 }
             },
@@ -480,13 +469,9 @@ def create_answer_note_entry(note_id: UUID, body: AnswerNoteEntryCreate, db: DB,
                 detail="다른 사용자의 답변 노트에는 항목을 추가할 수 없습니다",
             )
 
-        question = db.get(Question, body.question_id)
-        if not question:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
-
         entry = AnswerNoteEntry(
             note_id=note.id,
-            question_id=body.question_id,
+            question=body.question,
             initial_answer=body.initial_answer,
             follow_up_question=body.follow_up_question,
             follow_up_answer=body.follow_up_answer,

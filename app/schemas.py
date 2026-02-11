@@ -260,9 +260,7 @@ class InterviewHomeStatsResponse(BaseModel):
     """
 
     average_competency: float = Field(description="최근 5건 면접의 평균 역량 점수 (0-100, 5개 항목 평균)")
-    recent_evaluation_count: int = Field(
-        description="평균 역량 계산에 사용된 실제 평가 건수 (최대 5개). 평가가 3개만 있으면 3, 10개 이상 있으면 5"
-    )
+    recent_evaluation_count: int = Field(description="최근 평균 계산에 사용된 평가 건수")
     total_interviews: int = Field(description="전체 면접 세트 수")
     in_progress_interviews: int = Field(description="진행중 면접 수 (in_progress + pending_evaluation)")
     completed_interviews: int = Field(description="완료된 면접 수 (completed)")
@@ -294,7 +292,7 @@ class AnswerNoteEntryCreate(BaseModel):
     한 노트 안에 여러 질문 답변을 추가할 수 있습니다.
     """
 
-    question_id: UUID = Field(description="연결할 질문 ID")
+    question: str = Field(min_length=1, description="질문 내용")
     initial_answer: str = Field(min_length=1, description="처음 작성한 답변 (필수)")
     follow_up_question: str | None = Field(default=None, description="압박/꼬리질문 (선택)")
     follow_up_answer: str | None = Field(default=None, description="압박/꼬리질문 답변 (선택)")
@@ -324,7 +322,7 @@ class AnswerNoteEntryResponse(BaseModel):
 
     id: UUID = Field(description="답변 노트 항목 ID")
     note_id: UUID = Field(description="노트 ID")
-    question_id: UUID = Field(description="연결된 질문 ID")
+    question: str = Field(description="질문 내용")
     initial_answer: str = Field(description="처음 작성한 답변")
     follow_up_question: str | None = Field(description="압박/꼬리질문 (없으면 null)")
     follow_up_answer: str | None = Field(description="압박/꼬리질문 답변 (없으면 null)")
@@ -398,3 +396,23 @@ class QAHistoryResponse(BaseModel):
     score: int = Field(ge=0, le=100, description="AI 평가 점수 (0-100)")
     hints: str = Field(description="AI가 제공한 힌트/피드백")
     created_at: datetime = Field(description="평가 일시")
+
+
+# === 스펙 평가 ===
+
+
+class SpecsAnalyzeRequest(BaseModel):
+    """스펙 평가 요청"""
+
+    specs: str = Field(min_length=1, description="지원자 스펙 원문 텍스트")
+
+
+class SpecsAnalyzeResponse(BaseModel):
+    """스펙 평가 응답"""
+
+    experience: int = Field(ge=0, le=100, description="경험 점수")
+    certificate: int = Field(ge=0, le=100, description="자격증 점수")
+    language: int = Field(ge=0, le=100, description="어학 점수")
+    career: int = Field(ge=0, le=100, description="경력 점수")
+    education: int = Field(ge=0, le=100, description="학력 점수")
+    analysis: str = Field(description="종합 분석")

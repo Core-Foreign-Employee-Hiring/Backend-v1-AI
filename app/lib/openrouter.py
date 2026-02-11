@@ -1,10 +1,10 @@
-import base64
 import json
 import re
 
 from openai import OpenAI
 
 from app.core.config import settings
+
 
 def create_openrouter_client() -> OpenAI:
     """OpenRouter 클라이언트 생성"""
@@ -29,7 +29,7 @@ async def transcribe_audio_base64(
 ) -> str:
     """
     Base64 인코딩된 오디오를 텍스트로 변환
-    
+
     OpenRouter는 Whisper API를 직접 지원하지 않으므로,
     실제로는 OpenAI Whisper API를 별도로 호출해야 합니다.
     """
@@ -80,18 +80,18 @@ def evaluate_answer_with_ai(
         )
 
         ai_response = completion.choices[0].message.content or "{}"
-        
+
         # 디버깅: 원본 응답 로그
         print(f"[DEBUG] AI 답변 평가 원본 응답 (첫 500자): {ai_response[:500]}")
-        
+
         cleaned = strip_markdown_code_fences(ai_response)
-        
+
         # 디버깅: 정제된 응답 로그
         print(f"[DEBUG] AI 답변 평가 정제된 응답 (첫 500자): {cleaned[:500]}")
-        
+
         if not cleaned.strip():
             raise ValueError("AI 응답이 비어있습니다")
-        
+
         evaluation = json.loads(cleaned)
 
         return {
@@ -108,6 +108,7 @@ def evaluate_answer_with_ai(
     except Exception as e:
         print(f"[ERROR] AI 답변 평가 중 에러: {str(e)}")
         import traceback
+
         print(traceback.format_exc())
         raise Exception(f"AI 평가 실패: {str(e)}")
 
@@ -143,17 +144,17 @@ JSON 형식으로 응답:
         )
 
         response = completion.choices[0].message.content or "{}"
-        
+
         # 디버깅: 꼬리질문 응답 로그
         print(f"[DEBUG] 꼬리질문 생성 원본 응답 (첫 300자): {response[:300]}")
-        
+
         cleaned = strip_markdown_code_fences(response)
-        
+
         print(f"[DEBUG] 꼬리질문 생성 정제된 응답 (첫 300자): {cleaned[:300]}")
-        
+
         if not cleaned.strip():
             raise ValueError("AI 응답이 비어있습니다")
-        
+
         parsed = json.loads(cleaned)
         return parsed.get("followUpQuestion", "")
     except json.JSONDecodeError as e:
@@ -163,6 +164,7 @@ JSON 형식으로 응답:
     except Exception as e:
         print(f"[ERROR] 꼬리질문 생성 중 에러: {str(e)}")
         import traceback
+
         print(traceback.format_exc())
         raise Exception(f"꼬리질문 생성 실패: {str(e)}")
 
@@ -178,10 +180,10 @@ def evaluate_interview_comprehensive(
     answers_text = "\n".join(
         [
             f"""
-질문 {i + 1}: {a['question']}
-답변: {a['user_answer']}
-{f"꼬리질문: {a['follow_up_question']}" if a.get('follow_up_question') else ''}
-{f"꼬리답변: {a.get('follow_up_answer', '(답변 없음)')}" if a.get('follow_up_question') else ''}
+질문 {i + 1}: {a["question"]}
+답변: {a["user_answer"]}
+{f"꼬리질문: {a['follow_up_question']}" if a.get("follow_up_question") else ""}
+{f"꼬리답변: {a.get('follow_up_answer', '(답변 없음)')}" if a.get("follow_up_question") else ""}
 """
             for i, a in enumerate(answers_data)
         ]
@@ -231,23 +233,23 @@ JSON 형식으로 응답 (반드시 이 형식을 따르세요):
 
         response = completion.choices[0].message.content or "{}"
         cleaned = strip_markdown_code_fences(response)
-        
+
         if not cleaned.strip():
             raise ValueError("AI 응답이 비어있습니다")
-        
+
         # JSON 유효성 검사
         try:
             evaluation = json.loads(cleaned)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             # JSON 파싱 실패 시 전체 응답 출력
-            print(f"[ERROR] JSON 파싱 실패! 전체 응답:")
+            print("[ERROR] JSON 파싱 실패! 전체 응답:")
             print(cleaned)
             raise
 
         # AI 응답의 detailedFeedback에 실제 질문/답변 데이터 추가
         detailed_feedback = evaluation.get("detailedFeedback", [])
         enriched_feedback = []
-        
+
         for item in detailed_feedback:
             question_order = item.get("questionOrder", 0)
             # questionOrder는 1부터 시작, 배열 인덱스는 0부터
@@ -267,7 +269,7 @@ JSON 형식으로 응답 (반드시 이 형식을 따르세요):
             else:
                 # questionOrder가 범위를 벗어나면 원본 그대로 추가
                 enriched_feedback.append(item)
-        
+
         return {
             "logic": evaluation.get("logic", 0),
             "evidence": evaluation.get("evidence", 0),
@@ -284,6 +286,77 @@ JSON 형식으로 응답 (반드시 이 형식을 따르세요):
     except Exception as e:
         print(f"[ERROR] 종합 평가 중 에러: {str(e)}")
         import traceback
+
         print(traceback.format_exc())
         raise Exception(f"종합 평가 실패: {str(e)}")
 
+
+def analyze_specs_with_ai(
+    specs: str,
+    ai_model: str | None = None,
+) -> dict:
+    """지원자 스펙 텍스트를 5개 항목으로 평가"""
+    client = create_openrouter_client()
+    model = ai_model or settings.default_ai_model
+
+    prompt = f"""
+You are a recruitment expert. Analyze the applicant's specification text and score each of the five items (experience, certificate, language, career, education) between 0 and 100, and write a comprehensive analysis of the results.
+
+Answer in Korean.
+
+[INPUT]
+{specs}
+
+[OUTPUT FORMAT]
+Respond in JSON format only. Do not include markdown tags (```json).
+{{
+  "experience": <점수 0-100>,
+  "certificate": <점수 0-100>,
+  "language": <점수 0-100>,
+  "career": <점수 0-100>,
+  "education": <점수 0-100>,
+  "analysis": "<상세 분석 내용>"
+}}
+"""
+
+    try:
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1000,
+        )
+
+        response_content = completion.choices[0].message.content or "{}"
+        cleaned = strip_markdown_code_fences(response_content)
+        parsed = json.loads(cleaned)
+
+        def _score(value: object) -> int:
+            try:
+                return max(0, min(100, int(float(str(value)))))
+            except (ValueError, TypeError):
+                return 0
+
+        analysis = parsed.get("analysis")
+        if not isinstance(analysis, str) or not analysis.strip():
+            analysis = "분석에 실패했습니다."
+
+        return {
+            "experience": _score(parsed.get("experience")),
+            "certificate": _score(parsed.get("certificate")),
+            "language": _score(parsed.get("language")),
+            "career": _score(parsed.get("career")),
+            "education": _score(parsed.get("education")),
+            "analysis": analysis,
+            "raw_response": response_content,
+        }
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] 스펙 평가 JSON 파싱 실패: {str(e)}")
+        print(f"[ERROR] 파싱 실패한 내용: {cleaned}")
+        raise Exception(f"스펙 평가 JSON 파싱 실패: {str(e)}")
+    except Exception as e:
+        print(f"[ERROR] 스펙 평가 중 에러: {str(e)}")
+        import traceback
+
+        print(traceback.format_exc())
+        raise Exception(f"스펙 평가 실패: {str(e)}")

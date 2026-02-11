@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import answer_notes, interview, questions
+from app.api import answer_notes, interview, questions, specs
 from app.core.database import create_db_and_tables, seed_initial_questions
 
 from scalar_fastapi import get_scalar_api_reference
@@ -30,9 +30,11 @@ app = FastAPI(
     description="""
 ## 인증 방법
 
-모든 API는 JWT Bearer Token 인증이 필요합니다.
+대부분 API는 JWT Bearer Token 인증이 필요합니다.
 
 요청 헤더에 `Authorization: Bearer {access_token}` 추가
+
+예외: `POST /specs/analyze`는 외부 서버 연동용으로 인증 없이 호출 가능합니다.
     """,
     version="1.0.0",
     lifespan=lifespan,
@@ -54,6 +56,10 @@ app = FastAPI(
         {
             "name": "Health",
             "description": "서버 상태 확인",
+        },
+        {
+            "name": "Specs",
+            "description": "외부 서버 연동용 스펙 평가 API",
         },
     ],
 )
@@ -100,6 +106,7 @@ async def http_exception_handler(request, exc: StarletteHTTPException):
 app.include_router(questions.router)  # 어드민 전용: /admin/questions
 app.include_router(interview.router)  # 일반 사용자: /interview
 app.include_router(answer_notes.router)  # 일반 사용자: /answer-notes
+app.include_router(specs.router)  # 외부 서버 연동: /specs
 
 
 @app.get("/scalar", include_in_schema=False)

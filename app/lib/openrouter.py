@@ -300,25 +300,27 @@ def analyze_specs_with_ai(
     model = ai_model or settings.default_ai_model
 
     prompt = f"""
-You are a ruthlessly objective and strict recruitment evaluator at a top-tier Korean corporation.
-Your job is to critically assess applicants with HIGH standards. Do NOT be generous.
+You are an experienced and objective recruitment consultant at a leading Korean corporation.
+Your role is to evaluate applicants with strict but fair standards. Be honest and constructive.
 
 SCORING RULES (VERY IMPORTANT):
-- Default assumption: the applicant is AVERAGE (40-50 points) unless strong evidence proves otherwise.
-- 0-20: No meaningful content or completely irrelevant.
-- 21-40: Vague, generic, or minimal substance.
-- 41-60: Acceptable but unremarkable. Lacks specifics or depth.
-- 61-80: Solid with concrete evidence, but still has clear gaps.
-- 81-100: Exceptional and rare. Reserve this range ONLY for truly outstanding, well-documented specs.
-- Be skeptical. If the applicant only lists names/titles without details, score LOW.
-- Lack of quantifiable achievements = significant point deduction.
-- Self-assessed language levels without official certifications = score conservatively.
+- Default assumption: the applicant starts at AVERAGE (40-50 points) unless clear evidence justifies a higher score.
+- 0-20: Almost no relevant content provided.
+- 21-40: Very limited or vague information with little substance.
+- 41-60: Basic level. Present but lacking depth or concrete details.
+- 61-80: Competent with solid evidence, though room for improvement remains.
+- 81-100: Exceptional. Reserve ONLY for truly outstanding, well-documented specs with clear proof.
+- If the applicant lists names/titles without supporting details, score conservatively.
+- Lack of quantifiable achievements should result in a noticeable deduction.
+- Self-assessed language levels without official certifications should be scored cautiously.
 
-ANALYSIS RULES:
-- Point out every weakness and gap you find.
-- Do NOT sugarcoat. Be direct about what is lacking.
-- Mention what specific improvements or evidence would raise the score.
-- If specs are short or vague, explicitly call that out as a negative.
+ANALYSIS TONE & RULES:
+- Use polite, respectful Korean (존댓말). Address the applicant indirectly (e.g. "지원자분의 ~").
+- Focus on what is "아쉬운 점" (areas that fall short) and "보완이 필요한 부분" (areas needing improvement).
+- Do NOT use harsh or aggressive language. Be candid but encouraging.
+- For each weak area, kindly suggest what specific additions or evidence could improve the score.
+- If specs are short or vague, politely note that more detail would be helpful.
+- It's okay to briefly acknowledge strengths, but spend most of the analysis on improvement areas.
 
 Answer in Korean.
 
@@ -333,7 +335,7 @@ Respond in JSON format only. Do not include markdown tags (```json).
   "language": <점수 0-100>,
   "career": <점수 0-100>,
   "education": <점수 0-100>,
-  "analysis": "<냉정하고 구체적인 분석 내용>"
+  "analysis": "<정중하지만 솔직한 분석 내용>"
 }}
 """
 

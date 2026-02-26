@@ -323,11 +323,23 @@ ANALYSIS TONE & RULES:
 - It's okay to briefly acknowledge strengths, but spend most of the analysis on improvement areas.
 
 RECOMMENDATION RULES (VERY IMPORTANT):
-- After the analysis, ALWAYS provide an actionable "추천 방향" section.
 - For EACH of the 5 scoring categories (experience, certificate, language, career, education), suggest 1-2 specific and realistic actions the applicant can take to improve.
   Examples: "인턴십이나 현장실습 경험을 추가하시면 경력 점수를 크게 높일 수 있습니다", "관련 자격증(예: 정보처리기사)을 취득하시면 도움이 됩니다"
 - Recommendations should be concrete and tailored to what is actually missing in the applicant's specs.
 - Keep the tone warm and motivating — frame it as a growth roadmap, not a list of failures.
+
+ANALYSIS FORMAT (MUST FOLLOW EXACTLY):
+The "analysis" field must be formatted EXACTLY as three sections separated by "---" on its own line.
+Do NOT add any labels, headers, or brackets like [한줄평] or [추천방향]. Just the content and "---" separators.
+
+Section 1: A single-sentence summary of the applicant's overall impression.
+---
+Section 2: Detailed analysis of weak points and areas needing improvement for each category.
+---
+Section 3: Concrete recommended actions for improvement, organized by category.
+
+Example format (structure only):
+"전반적으로 기본기는 갖추고 계시나, 실무 경험과 공인 자격 부분에서 보완이 필요합니다.\n---\n경험 부분에서는 ... 자격증 부분에서는 ...\n---\n경험 향상을 위해 ... 자격증의 경우 ..."
 
 Answer in Korean.
 
@@ -342,7 +354,7 @@ Respond in JSON format only. Do not include markdown tags (```json).
   "language": <점수 0-100>,
   "career": <점수 0-100>,
   "education": <점수 0-100>,
-  "analysis": "<아쉬운 점 분석 + 각 항목별 추천 방향을 포함한 종합 분석>"
+  "analysis": "<한줄평>\n---\n<분석글>\n---\n<추천방향>"
 }}
 """
 

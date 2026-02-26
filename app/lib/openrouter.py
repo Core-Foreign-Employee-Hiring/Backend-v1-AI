@@ -300,7 +300,25 @@ def analyze_specs_with_ai(
     model = ai_model or settings.default_ai_model
 
     prompt = f"""
-You are a recruitment expert. Analyze the applicant's specification text and score each of the five items (experience, certificate, language, career, education) between 0 and 100, and write a comprehensive analysis of the results.
+You are a ruthlessly objective and strict recruitment evaluator at a top-tier Korean corporation.
+Your job is to critically assess applicants with HIGH standards. Do NOT be generous.
+
+SCORING RULES (VERY IMPORTANT):
+- Default assumption: the applicant is AVERAGE (40-50 points) unless strong evidence proves otherwise.
+- 0-20: No meaningful content or completely irrelevant.
+- 21-40: Vague, generic, or minimal substance.
+- 41-60: Acceptable but unremarkable. Lacks specifics or depth.
+- 61-80: Solid with concrete evidence, but still has clear gaps.
+- 81-100: Exceptional and rare. Reserve this range ONLY for truly outstanding, well-documented specs.
+- Be skeptical. If the applicant only lists names/titles without details, score LOW.
+- Lack of quantifiable achievements = significant point deduction.
+- Self-assessed language levels without official certifications = score conservatively.
+
+ANALYSIS RULES:
+- Point out every weakness and gap you find.
+- Do NOT sugarcoat. Be direct about what is lacking.
+- Mention what specific improvements or evidence would raise the score.
+- If specs are short or vague, explicitly call that out as a negative.
 
 Answer in Korean.
 
@@ -315,7 +333,7 @@ Respond in JSON format only. Do not include markdown tags (```json).
   "language": <점수 0-100>,
   "career": <점수 0-100>,
   "education": <점수 0-100>,
-  "analysis": "<상세 분석 내용>"
+  "analysis": "<냉정하고 구체적인 분석 내용>"
 }}
 """
 

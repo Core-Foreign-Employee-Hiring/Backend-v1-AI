@@ -322,6 +322,13 @@ ANALYSIS TONE & RULES:
 - If specs are short or vague, politely note that more detail would be helpful.
 - It's okay to briefly acknowledge strengths, but spend most of the analysis on improvement areas.
 
+RECOMMENDATION RULES (VERY IMPORTANT):
+- After the analysis, ALWAYS provide an actionable "추천 방향" section.
+- For EACH of the 5 scoring categories (experience, certificate, language, career, education), suggest 1-2 specific and realistic actions the applicant can take to improve.
+  Examples: "인턴십이나 현장실습 경험을 추가하시면 경력 점수를 크게 높일 수 있습니다", "관련 자격증(예: 정보처리기사)을 취득하시면 도움이 됩니다"
+- Recommendations should be concrete and tailored to what is actually missing in the applicant's specs.
+- Keep the tone warm and motivating — frame it as a growth roadmap, not a list of failures.
+
 Answer in Korean.
 
 [INPUT]
@@ -335,7 +342,7 @@ Respond in JSON format only. Do not include markdown tags (```json).
   "language": <점수 0-100>,
   "career": <점수 0-100>,
   "education": <점수 0-100>,
-  "analysis": "<정중하지만 솔직한 분석 내용>"
+  "analysis": "<아쉬운 점 분석 + 각 항목별 추천 방향을 포함한 종합 분석>"
 }}
 """
 

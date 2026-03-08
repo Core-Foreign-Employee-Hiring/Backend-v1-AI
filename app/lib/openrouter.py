@@ -1,5 +1,6 @@
 import json
 import re
+from typing import Any
 
 from openai import OpenAI
 
@@ -20,6 +21,60 @@ def strip_markdown_code_fences(text: str) -> str:
     text = re.sub(r"```(?:json)?\s*\n?", "", text)
     text = text.strip()
     return text
+
+
+def _escape_control_chars_in_json_strings(text: str) -> str:
+    """JSON 문자열 내부의 raw 제어문자를 escape 처리"""
+    result: list[str] = []
+    in_string = False
+    is_escaped = False
+
+    for char in text:
+        if in_string:
+            if is_escaped:
+                result.append(char)
+                is_escaped = False
+                continue
+
+            if char == "\\":
+                result.append(char)
+                is_escaped = True
+                continue
+
+            if char == '"':
+                result.append(char)
+                in_string = False
+                continue
+
+            if char == "\n":
+                result.append("\\n")
+                continue
+
+            if char == "\r":
+                result.append("\\r")
+                continue
+
+            if char == "\t":
+                result.append("\\t")
+                continue
+
+            result.append(char)
+            continue
+
+        result.append(char)
+        if char == '"':
+            in_string = True
+
+    return "".join(result)
+
+
+def load_ai_json(text: str) -> dict[str, Any]:
+    """AI 응답 JSON을 파싱하고, 문자열 내부 raw 줄바꿈이 있으면 보정"""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        repaired = _escape_control_chars_in_json_strings(text)
+        return json.loads(repaired)
 
 
 async def transcribe_audio_base64(
@@ -92,7 +147,7 @@ def evaluate_answer_with_ai(
         if not cleaned.strip():
             raise ValueError("AI 응답이 비어있습니다")
 
-        evaluation = json.loads(cleaned)
+        evaluation = load_ai_json(cleaned)
 
         return {
             "score": evaluation.get("score", 0),
@@ -155,7 +210,7 @@ JSON 형식으로 응답:
         if not cleaned.strip():
             raise ValueError("AI 응답이 비어있습니다")
 
-        parsed = json.loads(cleaned)
+        parsed = load_ai_json(cleaned)
         return parsed.get("followUpQuestion", "")
     except json.JSONDecodeError as e:
         print(f"[ERROR] 꼬리질문 JSON 파싱 실패: {str(e)}")
@@ -239,7 +294,7 @@ JSON 형식으로 응답 (반드시 이 형식을 따르세요):
 
         # JSON 유효성 검사
         try:
-            evaluation = json.loads(cleaned)
+            evaluation = load_ai_json(cleaned)
         except json.JSONDecodeError:
             # JSON 파싱 실패 시 전체 응답 출력
             print("[ERROR] JSON 파싱 실패! 전체 응답:")
@@ -368,7 +423,7 @@ Respond in JSON format only. Do not include markdown tags (```json).
 
         response_content = completion.choices[0].message.content or "{}"
         cleaned = strip_markdown_code_fences(response_content)
-        parsed = json.loads(cleaned)
+        parsed = load_ai_json(cleaned)
 
         def _score(value: object) -> int:
             try:

@@ -151,9 +151,14 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
 
         # 질문 조합 (면접 세트 생성 전에 먼저 확인)
         question_count = body.question_count
-        common_count = int(question_count * 0.4)
-        job_count = int(question_count * 0.3)
-        foreigner_count = question_count - common_count - job_count
+        # round() 사용: int()는 0.9 → 0으로 버려 직무 질문이 0개가 되는 버그 방지
+        common_count = round(question_count * 0.4)
+        job_count = round(question_count * 0.3)
+        # 최소 1개 보장 (질문이 2개 이상일 때)
+        if question_count >= 2:
+            job_count = max(1, job_count)
+            common_count = max(1, common_count)
+        foreigner_count = max(0, question_count - common_count - job_count)
 
         # 공통 질문
         common_questions = list(db.exec(select(Question).where(Question.category == "common").limit(20)).all())
@@ -168,8 +173,15 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
             ).all()
         )
 
-        # 외국인특화 질문
-        foreigner_questions = list(db.exec(select(Question).where(Question.category == "foreigner").limit(20)).all())
+        # 외국인특화 질문 (job_type이 현재 직무이거나 NULL인 것만 포함)
+        foreigner_questions: list[Question] = list(
+            db.exec(
+                select(Question)
+                .where(Question.category == "foreigner")
+                .where((col(Question.job_type).is_(None)) | (Question.job_type == body.job_type.value))
+                .limit(20)
+            ).all()
+        )
 
         # 랜덤 선택
         selected_questions = [

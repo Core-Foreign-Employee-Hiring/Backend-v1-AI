@@ -8,6 +8,7 @@ from sqlalchemy import func
 from sqlmodel import asc, col, desc, select
 
 from app.core.auth import DB, CurrentUser
+from app.core.plan import ProUser
 from app.models import (
     InterviewAnswer,
     InterviewEvaluation,
@@ -101,6 +102,9 @@ def check_and_update_interview_status(db: "DB", set_id: UUID) -> bool:
 1. 생성 시: `in_progress` (면접중)
 2. 모든 답변 완료 시: `pending_evaluation` (평가대기) - 자동 전환
 3. 평가 완료 시: `completed` (평가완료)
+
+**플랜 제한:**
+- `PRO` 플랜 회원만 사용 가능합니다. FREE 플랜 사용자는 403 에러가 발생합니다.
 """,
     responses={
         201: {"description": "면접 세트 생성 성공 - set_id와 배정된 질문 목록 반환"},
@@ -133,10 +137,38 @@ def check_and_update_interview_status(db: "DB", set_id: UUID) -> bool:
                 }
             },
         },
+        403: {
+            "description": "권한 없음 - PRO 플랜이 아님",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "not_pro": {
+                            "summary": "FREE 플랜",
+                            "value": {
+                                "detail": "PRO 플랜에서만 사용할 수 있는 기능입니다. 플랜을 업그레이드해주세요."
+                            },
+                        }
+                    }
+                }
+            },
+        },
         500: {"description": "서버 오류"},
+        503: {
+            "description": "Korfit 플랜 조회 API 호출 실패 (일시 장애)",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "korfit_api_down": {
+                            "summary": "Korfit API 오류",
+                            "value": {"detail": "플랜 정보를 확인할 수 없습니다 (Korfit API 호출 실패)"},
+                        }
+                    }
+                }
+            },
+        },
     },
 )
-def create_interview_set(body: InterviewSetCreate, db: DB, current_user: CurrentUser):
+def create_interview_set(body: InterviewSetCreate, db: DB, current_user: ProUser):
     """
     면접 세트를 생성합니다.
 
@@ -268,9 +300,27 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
 
 **중복 방지:**
 - 같은 `set_id` + `question_order`로 중복 제출 시 409 에러가 발생합니다.
+
+**플랜 제한:**
+- `PRO` 플랜 회원만 사용 가능합니다. FREE 플랜 사용자는 403 에러가 발생합니다.
 """,
     responses={
         200: {"description": "답변 제출 성공 - answer_id와 꼬리질문(있는 경우) 반환"},
+        403: {
+            "description": "권한 없음 - PRO 플랜이 아님",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "not_pro": {
+                            "summary": "FREE 플랜",
+                            "value": {
+                                "detail": "PRO 플랜에서만 사용할 수 있는 기능입니다. 플랜을 업그레이드해주세요."
+                            },
+                        }
+                    }
+                }
+            },
+        },
         409: {
             "description": "중복 답변 - 동일한 면접 세트의 동일한 질문(order)에 이미 답변이 존재함",
             "content": {
@@ -341,9 +391,22 @@ def create_interview_set(body: InterviewSetCreate, db: DB, current_user: Current
             },
         },
         500: {"description": "서버 오류"},
+        503: {
+            "description": "Korfit 플랜 조회 API 호출 실패 (일시 장애)",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "korfit_api_down": {
+                            "summary": "Korfit API 오류",
+                            "value": {"detail": "플랜 정보를 확인할 수 없습니다 (Korfit API 호출 실패)"},
+                        }
+                    }
+                }
+            },
+        },
     },
 )
-def submit_answer(body: SubmitAnswerRequest, db: DB, current_user: CurrentUser):
+def submit_answer(body: SubmitAnswerRequest, db: DB, current_user: ProUser):
     """
     면접 답변을 제출합니다.
 
@@ -438,9 +501,27 @@ AI가 생성한 꼬리질문에 대한 답변을 제출합니다.
 **자동 상태 전환:**
 - 모든 질문과 꼬리질문 답변이 완료되면 면접 세트 상태가 `pending_evaluation`으로 자동 전환됩니다.
 - 이후 `/sets/{set_id}/complete` API로 AI 평가를 요청할 수 있습니다.
+
+**플랜 제한:**
+- `PRO` 플랜 회원만 사용 가능합니다. FREE 플랜 사용자는 403 에러가 발생합니다.
 """,
     responses={
         200: {"description": "꼬리질문 답변 제출 성공"},
+        403: {
+            "description": "권한 없음 - PRO 플랜이 아님",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "not_pro": {
+                            "summary": "FREE 플랜",
+                            "value": {
+                                "detail": "PRO 플랜에서만 사용할 수 있는 기능입니다. 플랜을 업그레이드해주세요."
+                            },
+                        }
+                    }
+                }
+            },
+        },
         401: {
             "description": "인증 실패 또는 유효하지 않은 토큰",
             "content": {
@@ -486,9 +567,22 @@ AI가 생성한 꼬리질문에 대한 답변을 제출합니다.
             },
         },
         500: {"description": "서버 오류"},
+        503: {
+            "description": "Korfit 플랜 조회 API 호출 실패 (일시 장애)",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "korfit_api_down": {
+                            "summary": "Korfit API 오류",
+                            "value": {"detail": "플랜 정보를 확인할 수 없습니다 (Korfit API 호출 실패)"},
+                        }
+                    }
+                }
+            },
+        },
     },
 )
-def submit_follow_up_answer(body: SubmitFollowUpRequest, db: DB, current_user: CurrentUser):
+def submit_follow_up_answer(body: SubmitFollowUpRequest, db: DB, current_user: ProUser):
     """꼬리질문에 대한 답변을 제출합니다."""
     try:
         answer = db.get(InterviewAnswer, body.answer_id)
@@ -544,6 +638,9 @@ def submit_follow_up_answer(body: SubmitFollowUpRequest, db: DB, current_user: C
 **결과:**
 - 평가 완료 후 상태가 `completed`로 변경됩니다.
 - 종합 피드백과 질문별 상세 피드백이 반환됩니다.
+
+**플랜 제한:**
+- `PRO` 플랜 회원만 사용 가능합니다. FREE 플랜 사용자는 403 에러가 발생합니다.
 """,
     responses={
         200: {"description": "면접 평가 완료 - 5가지 항목 점수와 피드백 반환"},
@@ -581,7 +678,25 @@ def submit_follow_up_answer(body: SubmitFollowUpRequest, db: DB, current_user: C
                 }
             },
         },
-        403: {"description": "권한 없음 (다른 사용자의 면접 세트)"},
+        403: {
+            "description": "권한 없음 - 다른 사용자의 면접 세트이거나 PRO 플랜이 아님",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "not_pro": {
+                            "summary": "FREE 플랜",
+                            "value": {
+                                "detail": "PRO 플랜에서만 사용할 수 있는 기능입니다. 플랜을 업그레이드해주세요."
+                            },
+                        },
+                        "not_owner": {
+                            "summary": "다른 사용자의 면접 세트",
+                            "value": {"detail": "다른 사용자의 면접 세트는 완료할 수 없습니다"},
+                        },
+                    }
+                }
+            },
+        },
         404: {"description": "면접 세트를 찾을 수 없음"},
         422: {
             "description": "유효성 검사 실패",
@@ -606,9 +721,22 @@ def submit_follow_up_answer(body: SubmitFollowUpRequest, db: DB, current_user: C
             },
         },
         500: {"description": "서버 오류 - AI 평가 실패"},
+        503: {
+            "description": "Korfit 플랜 조회 API 호출 실패 (일시 장애)",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "korfit_api_down": {
+                            "summary": "Korfit API 오류",
+                            "value": {"detail": "플랜 정보를 확인할 수 없습니다 (Korfit API 호출 실패)"},
+                        }
+                    }
+                }
+            },
+        },
     },
 )
-def complete_interview(set_id: UUID, db: DB, current_user: CurrentUser):
+def complete_interview(set_id: UUID, db: DB, current_user: ProUser):
     """면접을 완료하고 AI 평가를 생성합니다."""
     from app.lib.openrouter import evaluate_interview_comprehensive
 

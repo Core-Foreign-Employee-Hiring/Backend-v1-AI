@@ -25,5 +25,9 @@ class Settings(BaseSettings):
     # 초기 데이터 시딩 (ON/OFF 가능)
     seed_initial_questions: bool = True
 
+    # Korfit 내부 API (회원 플랜 조회 등)
+    korfit_api_base_url: str = "https://api.korfit.co.kr"
+    korfit_api_timeout: float = 5.0
+
 
 settings = Settings()
